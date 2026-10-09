@@ -2,8 +2,12 @@ import { openDatabase } from "../src/lib/db";
 import { loadConfig } from "../src/lib/config";
 import { seedDemo } from "../src/lib/db/seed";
 
-if (loadConfig().isProduction) {
-  console.error("Refusing to seed demonstration data into a production environment.");
+const cfg = loadConfig();
+if (cfg.isProduction || (cfg.databaseUrl && process.env.ALLOW_DEMO_SEED !== "true")) {
+  console.error(
+    "Refusing to seed fictional demo data: this looks like a production or hosted database. " +
+      "Set ALLOW_DEMO_SEED=true only for a disposable development/staging database.",
+  );
   process.exit(1);
 }
 const database = await openDatabase();

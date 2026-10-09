@@ -44,14 +44,14 @@ const MAX_PAGES = 200;
 interface Deps {
   fetchImpl?: typeof fetch;
   sleep?: (ms: number) => Promise<void>;
-  env?: NodeJS.ProcessEnv;
+  env?: Record<string, string | undefined>;
 }
 
 function host() {
   return new URL(config().atera.baseUrl).hostname.toLowerCase();
 }
 
-function apiKey(envVar: string, env: NodeJS.ProcessEnv = process.env) {
+function apiKey(envVar: string, env: Record<string, string | undefined> = process.env) {
   if (!/^ATERA_API_KEY(_[A-Z0-9]+)?$/.test(envVar)) throw new ProviderError("Invalid Atera key reference.", { retryable: false });
   const key = env[envVar];
   if (!key) throw new ProviderError(`Atera key ${envVar} is not set in the server environment.`, { retryable: false });

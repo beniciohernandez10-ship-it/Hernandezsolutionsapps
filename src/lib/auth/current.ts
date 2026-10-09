@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { asSystem } from "../db";
 import { loadPrincipal, type Principal } from "../authz";
@@ -16,8 +16,11 @@ export const currentSession = cache(async () => {
   return { session, principal };
 });
 
-export async function requirePrincipal(returnTo = "/portal"): Promise<{ principal: Principal; csrfToken: string }> {
+export async function requirePrincipal(returnTo?: string): Promise<{ principal: Principal; csrfToken: string }> {
   const s = await currentSession();
-  if (!s) redirect(`/signin?returnTo=${encodeURIComponent(returnTo)}`);
+  if (!s) {
+    const path = returnTo ?? (await headers()).get("x-itc-path") ?? "/portal";
+    redirect(`/signin?returnTo=${encodeURIComponent(path)}`);
+  }
   return { principal: s.principal, csrfToken: s.session.csrfToken };
 }

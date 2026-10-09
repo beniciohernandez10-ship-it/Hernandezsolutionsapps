@@ -43,7 +43,9 @@ function int(v: string | undefined, fallback: number) {
   return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
-export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
+export type Env = Record<string, string | undefined>;
+
+export function loadConfig(env: Env = process.env): AppConfig {
   const isDeployed = Boolean(env.VERCEL_ENV) || env.ITC_DEPLOYED === "true";
   const isProduction = env.VERCEL_ENV === "production" || env.ITC_ENV === "production";
   return {

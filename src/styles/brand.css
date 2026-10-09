@@ -1,0 +1,21 @@
+/*
+ * Hernandez Solutions brand overrides.
+ *
+ * Paste the brand values here (from the website's Tailwind/CSS theme) and the
+ * whole portal picks them up. Only override semantic tokens defined in
+ * tokens.css. Example shape (values intentionally left blank):
+ *
+ * :root {
+ *   --color-accent: <brand primary>;
+ *   --color-accent-hover: <brand primary, hover>;
+ *   --color-accent-contrast: <text on brand primary>;
+ *   --color-accent-soft: <brand primary at low opacity>;
+ *   --color-link: <link color>;
+ *   --color-focus: <focus ring color>;
+ *   --color-success: ...; --color-warning: ...; --color-danger: ...; --color-info: ...;
+ *   --font-sans: <website body font>;
+ *   --font-display: <website heading font>;
+ * }
+ *
+ * After changing colors, re-run the contrast check in docs/branding.md.
+ */

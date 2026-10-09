@@ -15,9 +15,10 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "db:migrate": "tsx scripts/migrate.ts",
-    "db:seed": "tsx scripts/seed.ts",
-    "jobs:run": "tsx scripts/run-jobs.ts"
+    "db:migrate": "tsx --env-file-if-exists=.env.local scripts/migrate.ts",
+    "db:seed": "tsx --env-file-if-exists=.env.local scripts/seed.ts",
+    "jobs:run": "tsx --env-file-if-exists=.env.local scripts/run-jobs.ts",
+    "setup": "npm run db:migrate && npm run db:seed"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.8",

@@ -106,6 +106,10 @@ export async function openDatabase(url = config().databaseUrl, pgliteDir = confi
     throw new Error("DATABASE_URL is required in deployed environments; local PGlite storage is not durable on Vercel.");
   }
   const { PGlite } = await import("@electric-sql/pglite");
+  if (!pgliteDir.startsWith("memory://")) {
+    const { mkdirSync } = await import("node:fs");
+    mkdirSync(pgliteDir, { recursive: true });
+  }
   return new PgliteDatabase(new PGlite(pgliteDir));
 }
 

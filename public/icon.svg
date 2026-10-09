@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Hernandez Solutions IT Center">
+  <!-- Placeholder monogram in the site's background color; replace with the official logo when supplied. -->
+  <rect width="512" height="512" rx="112" fill="#05060a"/>
+  <text x="256" y="300" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Arial, sans-serif" font-size="200" font-weight="700" fill="#f2f2f4" letter-spacing="-8">HS</text>
+  <rect x="156" y="350" width="200" height="12" rx="6" fill="#f2f2f4" opacity="0.5"/>
+</svg>
