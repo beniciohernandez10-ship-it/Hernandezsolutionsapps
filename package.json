@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.8",
+    "@vercel/analytics": "^2.0.1",
     "jose": "^6.2.12",
     "next": "^16.4.0",
     "pg": "^8.23.1",
