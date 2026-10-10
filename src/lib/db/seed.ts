@@ -184,6 +184,32 @@ export async function seedDemo(database: Database): Promise<boolean> {
       "update sync_states set last_error = 'Demo: provider returned 403 (consent not granted)' where customer_id = $1",
       [d.customers.fabrikam],
     );
+
+    // Registered devices (asset registry) with fixed demo short codes.
+    const assets: [string, number, string, string, string | null, string][] = [
+      ["workstation", 1, "WRKSTN-001", "demofrontd", d.users.contosoRequester, "Main office, front desk"],
+      ["workstation", 2, "WRKSTN-002", "demohygien", null, "Hygiene room 2"],
+      ["laptop", 1, "LAPTOP-001", "demolaptop", d.users.contosoAdmin, "Office manager"],
+    ];
+    for (const [kind, n, tag, code, userId, location] of assets) {
+      const r = await tx.query<{ id: string }>(
+        `insert into assets (customer_id, kind, number, tag, short_code, primary_user_source, primary_user_portal_id,
+                             primary_user_name, primary_user_upn, location, created_by, created_at, updated_at)
+         select $1, $2, $3, $4, $5, case when $6::uuid is null then 'none' else 'portal' end, $6::uuid,
+                u.display_name, u.email, $7, $8, now() - interval '5 days', now() - interval '5 days'
+           from (select 1) x left join users u on u.id = $6::uuid
+         returning id`,
+        [d.customers.contoso, kind, n, tag, code, userId, location, d.users.tech],
+      );
+      await tx.query(
+        "insert into asset_events (asset_id, customer_id, actor_user_id, action, details, at) values ($1, $2, $3, 'registered', $4, now() - interval '5 days')",
+        [r.rows[0].id, d.customers.contoso, d.users.tech, JSON.stringify({ tag, location })],
+      );
+    }
+    await tx.query(
+      "insert into asset_counters (customer_id, kind, last_number) values ($1, 'workstation', 2), ($1, 'laptop', 1)",
+      [d.customers.contoso],
+    );
     return true;
   });
 }

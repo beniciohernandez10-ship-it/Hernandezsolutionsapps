@@ -215,3 +215,82 @@ async function recordSync(customerId: string, status: string, o: { error?: strin
     ),
   );
 }
+
+/**
+ * Read-only Entra ID user lookup for choosing a device's primary user.
+ *
+ * Microsoft Graph v1.0:
+ *   GET /users?$search="displayName:x" OR "userPrincipalName:x"  (requires ConsistencyLevel: eventual)
+ *   GET /users/{id}
+ *   least-privileged application permission: User.Read.All
+ * Uses the same inventory app registration and per-customer admin consent.
+ */
+export interface DirectoryUser {
+  objectId: string;
+  displayName: string;
+  userPrincipalName: string;
+  mail: string | null;
+}
+
+const USER_FIELDS = "id,displayName,userPrincipalName,mail,accountEnabled";
+const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// Letters, digits, spaces and the characters found in names and UPNs. Double
+// quotes and backslashes are excluded so the value cannot break out of $search.
+const SEARCH_TEXT = /^[\p{L}\p{N} .@_'-]{2,64}$/u;
+
+export function isValidDirectorySearch(q: string) {
+  return SEARCH_TEXT.test(q.trim());
+}
+
+export function normaliseUser(raw: Record<string, unknown>): DirectoryUser | null {
+  const id = typeof raw.id === "string" ? raw.id : "";
+  if (!GUID.test(id) || raw.accountEnabled === false) return null;
+  const s = (v: unknown, max = 200) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null);
+  const upn = s(raw.userPrincipalName, 256);
+  if (!upn) return null;
+  return { objectId: id.toLowerCase(), displayName: s(raw.displayName) ?? upn, userPrincipalName: upn, mail: s(raw.mail, 256) };
+}
+
+export async function searchDirectoryUsers(tenantId: string, query: string, deps: GraphDeps = {}): Promise<DirectoryUser[]> {
+  const q = query.trim();
+  if (!isValidDirectorySearch(q)) return [];
+  const token = await getGraphAppToken(tenantId, deps);
+  const params = new URLSearchParams({
+    $search: `"displayName:${q}" OR "userPrincipalName:${q}"`,
+    $select: USER_FIELDS,
+    $top: "10",
+  });
+  const res = await providerFetch(
+    `${config().graph.baseUrl}/v1.0/users?${params}`,
+    { headers: { authorization: `Bearer ${token}`, accept: "application/json", consistencylevel: "eventual" } },
+    { allowedHosts: [graphHost()], fetchImpl: deps.fetchImpl, sleep: deps.sleep },
+  );
+  if (!res.ok) {
+    throw new ProviderError(`Graph returned ${res.status} searching users. Check that User.Read.All has admin consent.`, {
+      status: res.status,
+      retryable: res.status >= 500 || res.status === 429,
+    });
+  }
+  const body = await readJsonResponse<{ value?: unknown }>(res);
+  if (!Array.isArray(body.value)) throw new ProviderError("Graph response missing value array.", { retryable: false });
+  return body.value
+    .map((r) => (r && typeof r === "object" ? normaliseUser(r as Record<string, unknown>) : null))
+    .filter((u): u is DirectoryUser => u !== null);
+}
+
+/** Re-reads one user from the customer's own directory before it is saved. */
+export async function getDirectoryUser(tenantId: string, objectId: string, deps: GraphDeps = {}): Promise<DirectoryUser | null> {
+  if (!GUID.test(objectId)) return null;
+  const token = await getGraphAppToken(tenantId, deps);
+  const res = await providerFetch(
+    `${config().graph.baseUrl}/v1.0/users/${encodeURIComponent(objectId)}?$select=${USER_FIELDS}`,
+    { headers: { authorization: `Bearer ${token}`, accept: "application/json" } },
+    { allowedHosts: [graphHost()], fetchImpl: deps.fetchImpl, sleep: deps.sleep },
+  );
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    throw new ProviderError(`Graph returned ${res.status} reading a user.`, { status: res.status, retryable: res.status >= 500 || res.status === 429 });
+  }
+  const body = await readJsonResponse<Record<string, unknown>>(res);
+  return normaliseUser(body);
+}

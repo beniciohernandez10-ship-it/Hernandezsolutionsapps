@@ -29,6 +29,10 @@
 | | Durable sessions, rate limits, idempotency, job queue in Postgres | Implemented | |
 | Integrations | Intune managed-device inventory (read-only) | Implemented (mocked) | Needs app registration + customer consent |
 | | Sync status, stale detection, snapshot preservation | Implemented | |
+| Devices | Registry: automatic names (WRKSTN-001, LAPTOP-001), primary user, location, history | Implemented | asset-tags.md |
+| | Primary user from the customer's Microsoft directory | Implemented (mocked) | Needs `User.Read.All` + customer consent |
+| | QR labels for Brother PT-D610BT (24 mm), print and PNG | Implemented | Print size verified as PDF; not tested on a physical printer |
+| | Renaming the PC through Intune | Not built | Needs a privileged write permission; off by design |
 | | Atera customer verification + agent import (read-only) | Partial | Contract **unverified**; see atera-setup.md |
 | | Atera ticket import / bidirectional sync | Planned | Design in atera-sync-design.md; writes hard-disabled |
 | | Azure subscription management | Not planned in scope | IDs stored for reference only |

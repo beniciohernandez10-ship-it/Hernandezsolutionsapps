@@ -112,3 +112,40 @@ test("security headers are present", async ({ request }) => {
   expect(h["x-content-type-options"]).toBe("nosniff");
   expect(h["x-frame-options"]).toBe("DENY");
 });
+
+test("technician registers a device, gets the next name and a printable QR label", async ({ page }) => {
+  const errors = collectErrors(page);
+  await signInAs(page, /Tess Torres/);
+  await page.goto("/portal/devices");
+  await expect(page.getByRole("link", { name: "WRKSTN-001" })).toBeVisible();
+  await page.getByRole("link", { name: "Register device" }).click();
+  await page.getByLabel("Laptop").check();
+  await page.getByLabel("Primary user").fill("Riley");
+  await page.getByRole("button", { name: /Riley Rivera/ }).click();
+  await page.getByLabel("Location").fill("Exam room 3");
+  await page.getByRole("button", { name: "Register and get name" }).click();
+  await expect(page).toHaveURL(/\/portal\/devices\/[0-9a-f-]{36}\?created=1$/);
+  const heading = page.getByRole("heading", { level: 1 });
+  await expect(heading).toHaveText(/^LAPTOP-\d{3}$/);
+  const tag = (await heading.textContent())!.trim();
+  await expect(page.getByRole("img", { name: `Label for ${tag}` })).toBeVisible();
+  await expect(page.getByRole("definition").filter({ hasText: "Exam room 3" })).toBeVisible();
+  await page.getByRole("link", { name: "Print label" }).click();
+  await expect(page.getByRole("heading", { name: "Print 1 label" })).toBeVisible();
+  await expect(page.getByRole("img", { name: `Label for ${tag}` })).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("QR short links require sign-in and respect customer boundaries", async ({ page, browser }) => {
+  await page.goto("/a/demofrontd");
+  await expect(page).toHaveURL(/\/signin\?returnTo=%2Fa%2Fdemofrontd/);
+  await signInAs(page, /Cora Chen/);
+  await page.goto("/a/demofrontd");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("WRKSTN-001");
+  await expect(page.getByRole("button", { name: "Save changes" })).toHaveCount(0);
+  const other = await browser.newPage();
+  await signInAs(other, /Fiona Flores/);
+  const res = await other.goto("/a/demofrontd");
+  expect(res?.status()).toBe(404);
+  await other.close();
+});

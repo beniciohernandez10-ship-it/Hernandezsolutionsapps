@@ -1023,10 +1023,86 @@ tbody tr:hover {
   }
 }
 
+/* Device registry: labels and user picker */
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.label-preview {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-4);
+  background: var(--color-surface-sunken);
+  border-radius: var(--radius);
+}
+.label-preview .asset-label {
+  width: min(100%, 384px);
+  height: auto;
+  border-radius: 4px;
+  box-shadow: var(--shadow-sm);
+}
+.label-sheet {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+.label-sheet .asset-label {
+  border: 1px dashed var(--color-border-strong);
+}
+.picker-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  max-height: 260px;
+  overflow: auto;
+}
+.picker-item {
+  display: block;
+  width: 100%;
+  min-height: var(--tap-min);
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.picker-item:hover,
+.picker-item:focus-visible {
+  background: var(--color-accent-soft);
+}
+
 @media print {
   .site-header,
   .site-footer,
+  .demo-banner,
+  .skip-link,
   .no-print {
     display: none !important;
+  }
+}
+
+/* Label printing: the page size itself (@page) is set only by the labels page,
+   so printing any other portal page still uses the printer's paper size. */
+@media print {
+  .label-sheet {
+    display: block;
+  }
+  .label-page {
+    width: 64mm;
+    height: 24mm;
+    overflow: hidden;
+    break-after: page;
+  }
+  .label-page:last-child {
+    break-after: auto;
+  }
+  .label-sheet .asset-label {
+    border: 0;
+    display: block;
   }
 }

@@ -4,7 +4,10 @@ import { AppError } from "@/lib/errors";
 import { ComplianceBadge, SyncBadge } from "@/components/badges";
 import { Time } from "@/components/time";
 import { PageTransition } from "@/components/page-transition";
-import { IconDevice } from "@/components/icons";
+import { IconDevice, IconPlus } from "@/components/icons";
+import Link from "next/link";
+import { listAssets, registrableCustomers } from "@/lib/assets/service";
+import { KIND_LABEL } from "@/lib/assets/naming";
 
 export const metadata = { title: "Devices" };
 
@@ -27,14 +30,64 @@ export default async function DevicesPage() {
     throw e;
   }
   const multi = new Set(data.devices.map((d) => d.customerId)).size > 1 || principal.memberships.length > 1;
+  const assets = await listAssets(principal);
+  const canRegister = registrableCustomers(principal).length > 0;
   return (
     <PageTransition>
       <div className="page-head">
         <div>
-          <p className="eyebrow">Read-only inventory</p>
+          <p className="eyebrow">Devices</p>
           <h1>Devices</h1>
         </div>
+        {canRegister && (
+          <div className="row">
+            {assets.length > 0 && <Link className="btn" href="/portal/devices/labels">Print all labels</Link>}
+            <Link className="btn btn-primary" href="/portal/devices/new" transitionTypes={["nav-forward"]}>
+              <IconPlus size={18} /> Register device
+            </Link>
+          </div>
+        )}
       </div>
+      <section className="stack" aria-labelledby="reg-h">
+        <h2 id="reg-h">Registered devices</h2>
+        {assets.length === 0 ? (
+          <p className="subtle">
+            {canRegister
+              ? "No devices registered yet. Registering a device gives it the next name (WRKSTN-001, LAPTOP-001), a primary user, a location and a QR label."
+              : "No devices have been registered for your organization yet."}
+          </p>
+        ) : (
+          <div className="table-wrap">
+            <table>
+              <caption className="sr-only">Registered devices with type, primary user, location and whether the PC has reported in</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Name</th>
+                  {multi && <th scope="col">Organization</th>}
+                  <th scope="col">Type</th>
+                  <th scope="col">Primary user</th>
+                  <th scope="col">Location</th>
+                  <th scope="col">Reported in</th>
+                </tr>
+              </thead>
+              <tbody>
+                {assets.map((a) => (
+                  <tr key={a.id}>
+                    <th scope="row">
+                      <Link href={`/portal/devices/${a.id}`} transitionTypes={["nav-forward"]}>{a.tag}</Link>
+                    </th>
+                    {multi && <td>{a.customerName}</td>}
+                    <td>{KIND_LABEL[a.kind]}</td>
+                    <td>{a.primaryUserName ?? <span className="subtle">Shared</span>}</td>
+                    <td>{a.location ?? <span className="subtle">Not set</span>}</td>
+                    <td>{a.linkedDevice ? <ComplianceBadge state={a.linkedDevice.complianceState} /> : <span className="subtle">Not yet</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
       <section className="stack" aria-labelledby="sync-h">
         <h2 id="sync-h">Synchronization</h2>
         {data.sync.length === 0 ? (
@@ -62,7 +115,7 @@ export default async function DevicesPage() {
         )}
       </section>
       <section className="stack" aria-labelledby="dev-h">
-        <h2 id="dev-h">{data.devices.length} device{data.devices.length === 1 ? "" : "s"}</h2>
+        <h2 id="dev-h">Inventory from Intune and Atera: {data.devices.length} device{data.devices.length === 1 ? "" : "s"}</h2>
         {data.devices.length === 0 ? (
           <div className="empty">
             <IconDevice size={28} />
@@ -97,7 +150,7 @@ export default async function DevicesPage() {
             </table>
           </div>
         )}
-        <p className="subtle">This view is read-only. The IT Center cannot wipe, restart or run anything on your devices.</p>
+        <p className="subtle">The inventory is read-only. The IT Center cannot wipe, restart, rename or run anything on your devices.</p>
       </section>
     </PageTransition>
   );

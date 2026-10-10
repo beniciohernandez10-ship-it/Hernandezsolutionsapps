@@ -42,6 +42,13 @@ Reopen policy: customers may reopen within `REOPEN_WINDOW_DAYS` (default 14) of 
 ## Devices
 
 | GET | `/devices?customerId=` | client admin / staff. Returns devices and per-provider `sync` status (`synchronized`, `pending`, `failed`, `needs_review`, `never`) with `lastSuccessAt`. |
+| GET | `/assets?retired=1` | client admin / staff. Registered devices with tag, type, primary user, location and the matching provider device, if one reported in. |
+| POST | `/assets` | `{ customerId, kind: "workstation"\|"laptop", primaryUser, location?, notes? }`. Staff only. Allocates the next name. `primaryUser` is `{ source: "none" }`, `{ source: "directory", tenantId, objectId }` or `{ source: "portal", userId }`; directory users are re-read from Graph. 201 |
+| GET | `/assets/{id}` | client admin / staff. Includes history and the QR link. |
+| PATCH | `/assets/{id}` | `{ version, primaryUser?, location?, notes?, status?: "active"\|"retired" }`. Staff only. 409 `version_conflict` if someone else changed it first. |
+| GET | `/assets/directory-users?customerId=&q=` | Staff only. Searches the customer's Microsoft directory (2–64 characters), or portal members when the directory isn't connected (`source: "portal"` plus a notice). |
+
+QR short links: `GET /a/{code}` (a page, not the API) requires sign-in and redirects to the device page if the caller can see it; otherwise 404.
 | --- | --- | --- |
 
 ## Administration (platform operators; recent sign-in required for changes)

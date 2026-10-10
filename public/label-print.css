@@ -1,0 +1,28 @@
+/* Loaded only by /portal/devices/labels: every printed page is one 64 x 24 mm
+   label (Brother 24 mm TZe tape) and nothing but the labels is laid out. */
+@page {
+  size: 64mm 24mm;
+  margin: 0;
+}
+html,
+body {
+  margin: 0 !important;
+  padding: 0 !important;
+  min-height: 0 !important;
+  height: auto !important;
+  background: #fff !important;
+}
+body * {
+  visibility: hidden;
+}
+.label-sheet,
+.label-sheet * {
+  visibility: visible;
+}
+.label-sheet {
+  position: absolute;
+  left: 0;
+  top: 0;
+  margin: 0;
+  padding: 0;
+}

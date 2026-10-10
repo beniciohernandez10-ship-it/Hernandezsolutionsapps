@@ -5,7 +5,7 @@ Two **separate** app registrations, both created in the Hernandez Solutions Entr
 | Registration | Purpose | Permissions | Used by |
 | --- | --- | --- | --- |
 | *Hernandez Solutions IT Center (sign-in)* | Users sign in to the portal | Delegated: `openid`, `profile`, `email` | `ENTRA_CLIENT_ID` / `ENTRA_CLIENT_SECRET` |
-| *Hernandez Solutions IT Center (inventory)* | Background, read-only Intune inventory per customer | Application: `DeviceManagementManagedDevices.Read.All` | `GRAPH_CLIENT_ID` / `GRAPH_CLIENT_SECRET` |
+| *Hernandez Solutions IT Center (inventory)* | Background, read-only Intune inventory and directory user lookup per customer | Application: `DeviceManagementManagedDevices.Read.All`, `User.Read.All` | `GRAPH_CLIENT_ID` / `GRAPH_CLIENT_SECRET` |
 
 Keeping them separate means a user signing in never grants device access, and inventory access can be consented, audited and revoked per customer independently.
 
@@ -31,7 +31,8 @@ Entra admin center → Identity → Applications → App registrations → New r
 ## 2. Inventory registration (Intune via Graph)
 
 - **Supported account types:** multitenant.
-- **API permissions:** Microsoft Graph → **Application** → `DeviceManagementManagedDevices.Read.All`. Do not add `ReadWrite`, `PrivilegedOperations`, or any wipe/retire/script permission.
+- **API permissions:** Microsoft Graph → **Application** → `DeviceManagementManagedDevices.Read.All` and `User.Read.All`. Do not add `ReadWrite`, `PrivilegedOperations`, or any wipe/retire/script permission.
+- `User.Read.All` lets technicians pick a device's primary user from the customer's directory in the [device registry](asset-tags.md). The portal reads only `id`, `displayName`, `userPrincipalName`, `mail` and `accountEnabled`.
 - Create a client secret → Vercel `GRAPH_CLIENT_SECRET`; set `GRAPH_CLIENT_ID`.
 
 **Per-customer admin consent** (a Global Administrator or Privileged Role Administrator *of the customer tenant* must approve):
@@ -40,7 +41,8 @@ Entra admin center → Identity → Applications → App registrations → New r
 
 Requirements to tell the customer:
 - They need active **Microsoft Intune** licensing for devices to appear.
-- Consent lets Hernandez Solutions read device name, operating system, compliance state, last check-in and the Entra device ID. It does not allow changes, wipes, restarts or scripts.
+- Consent lets Hernandez Solutions read device name, operating system, compliance state, last check-in and the Entra device ID, and look up users' names and sign-in addresses to assign devices. It does not allow changes, wipes, restarts or scripts.
+- Customers who consented before `User.Read.All` was added must consent again (same link) before directory search works. Until then the picker offers the customer's portal members.
 - They can revoke it any time: Enterprise applications → *Hernandez Solutions IT Center (inventory)* → Delete or remove permissions.
 
 After consent, an operator records it (`entra_directories.inventory_consent_at`) and enables inventory for the directory. Imports run each time the cron fires (daily on Vercel Hobby, hourly on Pro) via the job queue.

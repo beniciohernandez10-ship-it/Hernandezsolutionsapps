@@ -35,6 +35,8 @@ This describes what the code does today. It is not a claim of regulatory complia
 | Status changes | resolve own / reopen within 14 days | same, org-wide | any | any | no |
 | Assign / priority | no | no | yes | yes | no |
 | Device inventory | no | own org | assigned customers | assigned customers | no |
+| Device registry: view, labels | no | own org | assigned customers | assigned customers | no |
+| Device registry: register, edit, retire | no | no | assigned customers | assigned customers | no |
 | Customer onboarding, mappings, memberships | no | no | no | no | yes |
 
 Service-manager-only features (SLA policies, reports, queue management) are not built yet; the role is modeled and currently has technician capabilities within its assigned customers.
