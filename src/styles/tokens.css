@@ -5,11 +5,7 @@
  * --color-accent, ...), never raw colors. To apply the Hernandez Solutions
  * brand, set values in src/styles/brand.css; no component changes are needed.
  *
- * The defaults below are deliberately NEUTRAL (greyscale). The only value
- * taken from thehernandezsolutions.com is the page background #05060a
- * (the site's web-app manifest theme_color/background_color). The real
- * accent and supporting colors have not been supplied yet, so none are
- * invented here.
+ * Neutral fallbacks below; the real brand palette is applied in brand.css.
  */
 :root {
   color-scheme: dark;

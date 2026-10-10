@@ -1,21 +1,60 @@
 /*
- * Hernandez Solutions brand overrides.
+ * Hernandez Solutions brand palette.
  *
- * Paste the brand values here (from the website's Tailwind/CSS theme) and the
- * whole portal picks them up. Only override semantic tokens defined in
- * tokens.css. Example shape (values intentionally left blank):
+ * Values copied from the live thehernandezsolutions.com theme variables
+ * (DevTools, 2026-10-10), supplied by the owner. The site's own names are
+ * kept as --hs-* and mapped onto the portal's semantic tokens below.
+ * Hover/soft/strong variants are mixes of these values, not new hues.
  *
- * :root {
- *   --color-accent: <brand primary>;
- *   --color-accent-hover: <brand primary, hover>;
- *   --color-accent-contrast: <text on brand primary>;
- *   --color-accent-soft: <brand primary at low opacity>;
- *   --color-link: <link color>;
- *   --color-focus: <focus ring color>;
- *   --color-success: ...; --color-warning: ...; --color-danger: ...; --color-info: ...;
- *   --font-sans: <website body font>;
- *   --font-display: <website heading font>;
- * }
- *
- * After changing colors, re-run the contrast check in docs/branding.md.
+ * The site defines no status colors, so success/warning/danger stay neutral
+ * (every status also carries an icon and a text label).
  */
+:root {
+  --hs-bg: #05060a;
+  --hs-bg-elev: #080a0f;
+  --hs-surface: #0b0d13;
+  --hs-surface-2: #11141c;
+  --hs-fg: #f3f4f6;
+  --hs-fg-muted: #a3aab7;
+  --hs-accent: #6b95ff;
+  --hs-accent-2: #74d6ea;
+  --hs-line: #ffffff13;
+
+  --color-bg: var(--hs-bg);
+  --color-surface: var(--hs-surface);
+  --color-surface-raised: var(--hs-surface-2);
+  --color-surface-sunken: var(--hs-bg-elev);
+  --color-border: var(--hs-line);
+  --color-border-strong: color-mix(in srgb, var(--hs-fg) 18%, transparent);
+
+  --color-text: var(--hs-fg);
+  --color-text-muted: var(--hs-fg-muted);
+  --color-text-subtle: var(--hs-fg-muted);
+  --color-text-inverse: var(--hs-bg);
+
+  --color-accent: var(--hs-accent);
+  --color-accent-hover: color-mix(in srgb, var(--hs-accent) 85%, var(--hs-fg));
+  --color-accent-contrast: var(--hs-bg);
+  --color-accent-soft: color-mix(in srgb, var(--hs-accent) 14%, transparent);
+  --color-link: var(--hs-accent);
+  --color-focus: var(--hs-accent-2);
+
+  --color-info: var(--hs-accent-2);
+  --color-info-soft: color-mix(in srgb, var(--hs-accent-2) 12%, transparent);
+  --color-internal-note: color-mix(in srgb, var(--hs-accent-2) 6%, transparent);
+}
+
+:root[data-theme="light"] {
+  --hs-bg: #f6f5f1;
+  --hs-bg-elev: #f1f0eb;
+  --hs-surface: #ffffff;
+  --hs-surface-2: #efeee9;
+  --hs-fg: #0b0d13;
+  --hs-fg-muted: #464d5b;
+  --hs-accent: #2b59d9;
+  --hs-accent-2: #0f6f86;
+  --hs-line: #0c0e1417;
+
+  --color-accent-hover: color-mix(in srgb, var(--hs-accent) 85%, var(--hs-fg));
+  --color-accent-contrast: #ffffff;
+}

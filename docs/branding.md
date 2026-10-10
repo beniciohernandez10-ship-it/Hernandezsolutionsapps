@@ -2,9 +2,10 @@
 
 ## Current state
 
-- Only one brand value could be confirmed from thehernandezsolutions.com: the dark background **`#05060a`** (its web app manifest `theme_color` and `background_color`). The site's stylesheets could not be read from the build environment.
-- The portal therefore uses a **neutral greyscale theme on `#05060a`**. No accent or status colors were invented.
-- Fonts default to the system UI font stack; the website's font is unknown.
+- The palette in `src/styles/brand.css` is copied from the live thehernandezsolutions.com theme variables (`--bg`, `--bg-elev`, `--surface`, `--surface-2`, `--fg`, `--fg-muted`, `--accent`, `--accent-2`, `--line`), for both its dark (default) and light themes, as supplied by the owner on 2026-10-10.
+- Hover, soft and strong-border variants are `color-mix()` blends of those values; no new hues were added.
+- The website defines no success/warning/danger colors, so those stay neutral. Fonts still use the system UI stack until the website's font is known.
+- Measured contrast (WCAG): text on background 18.4:1 dark / 17.8:1 light; muted text on raised surfaces 7.9:1 / 7.3:1; accent on surface 6.8:1 / 5.1:1; button text on accent 7.1:1 / 5.9:1.
 
 ## Applying the Hernandez Solutions brand
 
