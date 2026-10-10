@@ -44,7 +44,7 @@ Leave `DEMO_MODE` unset everywhere except local development.
 
 ## 4. Cron
 
-`vercel.json` schedules `/api/cron/jobs` hourly. Vercel sends `Authorization: Bearer $CRON_SECRET`. On the Hobby plan crons run at most once a day; hourly inventory needs Pro.
+`vercel.json` schedules `/api/cron/jobs` once a day (06:00 UTC), because Vercel Hobby rejects deployments whose crons run more than daily. Vercel sends `Authorization: Bearer $CRON_SECRET`. On Pro, change the schedule to `0 * * * *` for hourly inventory and queue processing.
 
 ## 5. Custom domain
 

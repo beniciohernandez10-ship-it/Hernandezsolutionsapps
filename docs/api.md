@@ -58,5 +58,5 @@ Reopen policy: customers may reopen within `REOPEN_WINDOW_DAYS` (default 14) of 
 
 ## Jobs
 
-| GET | `/cron/jobs` | `Authorization: Bearer $CRON_SECRET`. Schedules hourly syncs, processes the queue, purges expired auth state. |
+| GET | `/cron/jobs` | `Authorization: Bearer $CRON_SECRET`. Called by the Vercel cron (daily on Hobby, hourly on Pro). Schedules syncs, processes the queue, purges expired auth state. |
 | --- | --- | --- |

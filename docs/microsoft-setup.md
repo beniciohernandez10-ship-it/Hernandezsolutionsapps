@@ -43,7 +43,7 @@ Requirements to tell the customer:
 - Consent lets Hernandez Solutions read device name, operating system, compliance state, last check-in and the Entra device ID. It does not allow changes, wipes, restarts or scripts.
 - They can revoke it any time: Enterprise applications → *Hernandez Solutions IT Center (inventory)* → Delete or remove permissions.
 
-After consent, an operator records it (`entra_directories.inventory_consent_at`) and enables inventory for the directory. Imports run hourly via the job queue.
+After consent, an operator records it (`entra_directories.inventory_consent_at`) and enables inventory for the directory. Imports run each time the cron fires (daily on Vercel Hobby, hourly on Pro) via the job queue.
 
 ## How the portal validates sign-in
 
