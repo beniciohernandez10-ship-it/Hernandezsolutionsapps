@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:vercel": "tsx scripts/deploy-migrate.ts && next build",
     "start": "next start",
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit",

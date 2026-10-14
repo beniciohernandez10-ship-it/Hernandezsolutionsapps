@@ -1,6 +1,6 @@
 # Vercel deployment and custom domain
 
-Nothing has been deployed yet. This repository and the public website are separate Vercel projects, so the portal can be deployed and rolled back without touching thehernandezsolutions.com.
+Nothing has been deployed yet. This repository (Vercel project `hernandez-solutions-portal`) and the public website (project `hernandez-solutions`) are separate Vercel projects, so the portal can be deployed and rolled back without touching thehernandezsolutions.com.
 
 ## Before deploying, confirm
 
@@ -16,7 +16,9 @@ Vercel → Add New → Project → import `beniciohernandez10-ship-it/Hernandezs
 
 Vercel → Storage (Marketplace) → **Neon** (Postgres) → create, and connect it to the portal project for Production and Preview. Use a separate Neon branch for Preview. Alternatively use Azure Database for PostgreSQL Flexible Server and paste its connection string as `DATABASE_URL`.
 
-Run migrations before the first deploy and on every release that adds a migration (from CI or a trusted machine):
+Migrations run automatically in the production build: `vercel.json` sets the build command to `npm run build:vercel`, which runs `scripts/deploy-migrate.ts` and then `next build`. The script migrates only when `VERCEL_ENV=production`, so preview builds never touch the production schema. If a migration fails, the build fails and the previous deployment keeps serving.
+
+This is needed because Neon stores `DATABASE_URL` as a Sensitive variable, which `vercel env pull` can't download. To migrate by hand instead (from a trusted machine), copy the connection string from the Neon console:
 
 ```bash
 DATABASE_URL="<production connection string>" npm run db:migrate
