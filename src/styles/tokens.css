@@ -1,0 +1,113 @@
+/*
+ * Semantic theme tokens for Hernandez Solutions IT Center.
+ *
+ * Components only ever reference these semantic names (--color-surface,
+ * --color-accent, ...), never raw colors. To apply the Hernandez Solutions
+ * brand, set values in src/styles/brand.css; no component changes are needed.
+ *
+ * Neutral fallbacks below; the real brand palette is applied in brand.css.
+ */
+:root {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --color-bg: #05060a;               /* from thehernandezsolutions.com manifest */
+  --color-surface: #0e0f14;
+  --color-surface-raised: #16171d;
+  --color-surface-sunken: #030407;
+  --color-border: #2a2b33;
+  --color-border-strong: #44454f;
+
+  /* Text */
+  --color-text: #f2f2f4;
+  --color-text-muted: #a3a4ad;
+  --color-text-subtle: #7c7d87;
+  --color-text-inverse: #05060a;
+
+  /* Brand accent (neutral until brand colors are supplied) */
+  --color-accent: #f2f2f4;
+  --color-accent-hover: #ffffff;
+  --color-accent-contrast: #05060a;
+  --color-accent-soft: rgba(242, 242, 244, 0.08);
+  --color-link: var(--color-text);
+  --color-focus: #ffffff;
+
+  /* Status tones. Neutral by default; every status is also shown with an
+     icon and a text label, so meaning never depends on color alone. */
+  --color-success: var(--color-text);
+  --color-success-soft: rgba(242, 242, 244, 0.06);
+  --color-warning: var(--color-text);
+  --color-warning-soft: rgba(242, 242, 244, 0.06);
+  --color-danger: var(--color-text);
+  --color-danger-soft: rgba(242, 242, 244, 0.06);
+  --color-info: var(--color-text);
+  --color-info-soft: rgba(242, 242, 244, 0.06);
+
+  /* Internal (private technician) note background */
+  --color-internal-note: rgba(242, 242, 244, 0.04);
+
+  /* Typography */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display: var(--font-sans);
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.75rem;
+  --text-3xl: clamp(1.75rem, 1.2rem + 2vw, 2.5rem);
+  --leading: 1.55;
+
+  /* Spacing, shape, depth */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --content-max: 1180px;
+  --tap-min: 44px;
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --duration-fast: 120ms;
+  --duration: 200ms;
+  --duration-slow: 400ms;
+}
+
+/* Light variant: opt-in with <html data-theme="light"> (the website itself is dark). */
+@media all {
+  :root[data-theme="light"] {
+    --color-bg: #ffffff;
+    --color-surface: #f6f6f8;
+    --color-surface-raised: #ffffff;
+    --color-surface-sunken: #eeeef1;
+    --color-border: #dcdce2;
+    --color-border-strong: #b9bac3;
+    --color-text: #05060a;
+    --color-text-muted: #4b4c56;
+    --color-text-subtle: #6b6c76;
+    --color-text-inverse: #ffffff;
+    --color-accent: #05060a;
+    --color-accent-hover: #1d1e25;
+    --color-accent-contrast: #ffffff;
+    --color-accent-soft: rgba(5, 6, 10, 0.06);
+    --color-focus: #05060a;
+    --color-success-soft: rgba(5, 6, 10, 0.05);
+    --color-warning-soft: rgba(5, 6, 10, 0.05);
+    --color-danger-soft: rgba(5, 6, 10, 0.05);
+    --color-info-soft: rgba(5, 6, 10, 0.05);
+    --color-internal-note: rgba(5, 6, 10, 0.035);
+    --shadow-sm: 0 1px 2px rgba(5, 6, 10, 0.08);
+    --shadow: 0 8px 24px rgba(5, 6, 10, 0.08);
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "redirects": [
+    { "source": "/client-portal", "destination": "https://portal.thehernandezsolutions.com", "permanent": false }
+  ]
+}
