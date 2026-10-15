@@ -1,0 +1,136 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+:root {
+  --bg: #f5f7fb;
+  --surface: #ffffff;
+  --surface-2: #f1f4f9;
+  --surface-3: #e8edf5;
+  --border: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --fg: #0f172a;
+  --fg-muted: #5b6678;
+  --fg-subtle: #8a94a6;
+  --accent: #2b59d9;
+  --accent-hover: #2349b8;
+  --accent-soft: #e8eefc;
+  --accent-fg: #ffffff;
+  --nav: #0b1730;
+  --nav-fg: #c9d4ea;
+  --nav-active: #16264a;
+  --success: #0f7a4f;
+  --success-soft: #e3f4ec;
+  --warning: #9a5b00;
+  --warning-soft: #fdf1dc;
+  --danger: #b4233a;
+  --danger-soft: #fbe7ea;
+  --ring: #2b59d9;
+  --chart-1: #2b59d9;
+  --chart-2: #0f6f86;
+  --chart-3: #7c8db5;
+  --chart-4: #1e3a8a;
+  --chart-5: #5fa8d3;
+  --chart-6: #94a3b8;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --bg: #070b14;
+  --surface: #0d1422;
+  --surface-2: #121b2c;
+  --surface-3: #18233a;
+  --border: #1d283c;
+  --border-strong: #2b3a55;
+  --fg: #e6eaf2;
+  --fg-muted: #9aa6bb;
+  --fg-subtle: #6b778d;
+  --accent: #6b95ff;
+  --accent-hover: #86a8ff;
+  --accent-soft: #15234a;
+  --accent-fg: #06102a;
+  --nav: #060a13;
+  --nav-fg: #a9b4cb;
+  --nav-active: #131d33;
+  --success: #4ccf95;
+  --success-soft: #0e2a20;
+  --warning: #f2b553;
+  --warning-soft: #2e2210;
+  --danger: #f27a8c;
+  --danger-soft: #331219;
+  --ring: #6b95ff;
+  --chart-1: #6b95ff;
+  --chart-2: #74d6ea;
+  --chart-3: #a5b4d8;
+  --chart-4: #3b63d9;
+  --chart-5: #4fa3c7;
+  --chart-6: #64748b;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-fg: var(--fg);
+  --color-muted: var(--fg-muted);
+  --color-subtle: var(--fg-subtle);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-fg: var(--accent-fg);
+  --color-nav: var(--nav);
+  --color-nav-fg: var(--nav-fg);
+  --color-nav-active: var(--nav-active);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-ring: var(--ring);
+  --font-sans: "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "SFMono-Regular", Menlo, monospace;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--fg);
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "tnum" 1;
+}
+
+*:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--accent-soft);
+}
+
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+.select-chevron {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a94a6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}

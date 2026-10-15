@@ -1,0 +1,4 @@
+src/generated/
+.env.local
+test-results/
+playwright-report/
