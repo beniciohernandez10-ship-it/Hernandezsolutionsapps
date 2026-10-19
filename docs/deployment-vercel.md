@@ -56,7 +56,11 @@ Leave `DEMO_MODE` unset everywhere except local development.
    - Otherwise add the shown record (normally a `CNAME` for `portal`) at your DNS provider.
 3. Wait for verification and certificate issuance, then add the Entra redirect URI `https://portal.thehernandezsolutions.com/api/auth/callback` if not already present.
 
-## 6. Smoke test after deploy
+## 6. Web Analytics
+
+The root layout renders `<Analytics />` from `@vercel/analytics/next`. Enable it in Vercel → Project → Analytics → Enable; page views appear after the next deploy. The script loads from the same origin (`/_vercel/insights/*`), so the existing CSP (`'strict-dynamic'`, `connect-src 'self'`) allows it without changes. Locally it runs in debug mode and sends nothing.
+
+## 7. Smoke test after deploy
 
 - `https://portal.thehernandezsolutions.com/api/health` → `{"status":"ok","database":"ok"}`
 - Sign in with an operator account; check a technician and a customer account.

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import { ServiceWorkerRegistration } from "@/components/sw-register";
 
@@ -27,6 +28,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body>
         {children}
         <ServiceWorkerRegistration />
+        <Analytics />
       </body>
     </html>
   );
