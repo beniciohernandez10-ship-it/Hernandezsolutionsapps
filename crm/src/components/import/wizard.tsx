@@ -49,7 +49,7 @@ export function ImportWizard({ fields, initialMode = "file" }: { fields: { key: 
       const a = r.data as AnalyzeResult;
       setAnalysis(a);
       setMapping(a.mapping as Record<string, string>);
-      setTags(a.fileName.replace(/\.(csv|xlsx|txt|tsv)$/i, "").replace(/[_]+/g, " ").slice(0, 40));
+      setTags(a.fileName.replace(/\.(csv|xlsx|xls|txt|tsv)$/i, "").replace(/[_]+/g, " ").slice(0, 40));
       setStep("map");
     });
 
@@ -84,7 +84,7 @@ export function ImportWizard({ fields, initialMode = "file" }: { fields: { key: 
     <Card>
       <CardHeader
         title={step === "upload" ? (mode === "paste" ? (pasteRows ? "2. Check the sorted rows" : "1. Paste lead information") : "1. Upload a file") : step === "map" ? "2. Match your columns" : step === "preview" ? "3. Check the preview" : "Import finished"}
-        description={analysis && step !== "upload" ? `${analysis.fileName} · ${analysis.rows} rows` : mode === "paste" ? "Contact details, business field, city, email and phone are sorted into columns for you." : "CSV or Excel (.xlsx), up to 4 MB."}
+        description={analysis && step !== "upload" ? `${analysis.fileName} · ${analysis.rows} rows` : mode === "paste" ? "Contact details, business field, city, email and phone are sorted into columns for you." : "CSV or Excel (.xlsx or .xls), up to 4 MB."}
         action={step !== "upload" || pasteRows ? <Button size="sm" variant="ghost" onClick={reset}><ArrowLeft /> Start over</Button> : null}
       />
       <CardBody className="flex flex-col gap-4">
@@ -115,7 +115,7 @@ export function ImportWizard({ fields, initialMode = "file" }: { fields: { key: 
             <span className="text-xs text-muted">Nothing is saved until you confirm the import.</span>
             <input
               type="file"
-              accept=".csv,.xlsx,.txt,.tsv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              accept=".csv,.xlsx,.xls,.txt,.tsv,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
               className="sr-only"
               disabled={pending}
               onChange={(e) => {
