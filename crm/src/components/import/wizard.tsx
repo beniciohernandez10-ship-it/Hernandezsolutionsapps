@@ -1,22 +1,29 @@
 "use client";
 
-import { ArrowLeft, Eye, Upload } from "lucide-react";
+import { ArrowLeft, ClipboardPaste, Eye, FileUp, Upload } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { analyzeImportAction, runImportAction, type AnalyzeResult } from "@/app/(app)/import/actions";
+import { PastePanel } from "@/components/import/paste-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { toast } from "@/components/ui/form";
 import { Field, Input, Select } from "@/components/ui/input";
 import { Alert, Stat } from "@/components/ui/misc";
+import { autoMap } from "@/lib/import/mapping";
+import { PASTE_COLUMNS, pastedLeadsToCsv, type PastedLead } from "@/lib/import/paste";
 import type { ImportReport } from "@/lib/import/types";
 import { cn } from "@/lib/utils";
 
 type Step = "upload" | "map" | "preview" | "done";
 
-export function ImportWizard({ fields }: { fields: { key: string; label: string }[] }) {
+export function ImportWizard({ fields, initialMode = "file" }: { fields: { key: string; label: string }[]; initialMode?: "file" | "paste" }) {
   const [step, setStep] = React.useState<Step>("upload");
+  const [mode, setMode] = React.useState<"file" | "paste">(initialMode);
+  const [pasteText, setPasteText] = React.useState("");
+  const [pasteRows, setPasteRows] = React.useState<PastedLead[] | null>(null);
+  const fromPaste = mode === "paste" && !!pasteRows;
   const [file, setFile] = React.useState<File | null>(null);
   const [analysis, setAnalysis] = React.useState<AnalyzeResult | null>(null);
   const [mapping, setMapping] = React.useState<Record<string, string>>({});
@@ -25,9 +32,9 @@ export function ImportWizard({ fields }: { fields: { key: string; label: string 
   const [pending, start] = React.useTransition();
   const [error, setError] = React.useState<string | null>(null);
 
-  const formWith = (extra: Record<string, string>) => {
+  const formWith = (extra: Record<string, string>, f = file) => {
     const fd = new FormData();
-    fd.set("file", file!);
+    fd.set("file", f!);
     for (const [k, v] of Object.entries(extra)) fd.set(k, v);
     return fd;
   };
@@ -46,10 +53,10 @@ export function ImportWizard({ fields }: { fields: { key: string; label: string 
       setStep("map");
     });
 
-  const run = (dryRun: boolean) =>
+  const run = (dryRun: boolean, override?: { file: File; mapping: Record<string, string>; tags: string }) =>
     start(async () => {
       setError(null);
-      const r = await runImportAction(formWith({ mapping: JSON.stringify(mapping), tags, dryRun: dryRun ? "1" : "0" }));
+      const r = await runImportAction(formWith({ mapping: JSON.stringify(override?.mapping ?? mapping), tags: override?.tags ?? tags, dryRun: dryRun ? "1" : "0" }, override?.file ?? file));
       if (!r?.ok) return setError(r?.error ?? "Import failed.");
       const rep = (r.data as { report: ImportReport }).report;
       setReport(rep);
@@ -57,18 +64,51 @@ export function ImportWizard({ fields }: { fields: { key: string; label: string 
       if (!dryRun) toast(`Imported: ${rep.created} created, ${rep.merged} merged${rep.flagged ? `, ${rep.flagged} to review` : ""}.`);
     });
 
+  /** Reviewed paste rows go through the same pipeline as a file: duplicate checks, report, audit. */
+  const previewPasted = (rows: PastedLead[]) => {
+    const f = new File([pastedLeadsToCsv(rows)], `Pasted leads ${new Date().toISOString().slice(0, 10)}.csv`, { type: "text/csv" });
+    const headers = PASTE_COLUMNS.map((c) => c.header);
+    const m = autoMap(headers) as Record<string, string>;
+    const t = tags || "pasted";
+    setFile(f);
+    setAnalysis({ fileName: f.name, headers, mapping: m, sample: [], rows: rows.length });
+    setMapping(m);
+    setTags(t);
+    run(true, { file: f, mapping: m, tags: t });
+  };
+
+  const reset = () => { setStep("upload"); setFile(null); setAnalysis(null); setReport(null); setPasteRows(null); setPasteText(""); setTags(""); };
   const used = new Set(Object.values(mapping));
 
   return (
     <Card>
       <CardHeader
-        title={step === "upload" ? "1. Upload a file" : step === "map" ? "2. Match your columns" : step === "preview" ? "3. Check the preview" : "Import finished"}
-        description={analysis ? `${analysis.fileName} · ${analysis.rows} rows` : "CSV or Excel (.xlsx), up to 4 MB."}
-        action={step !== "upload" ? <Button size="sm" variant="ghost" onClick={() => { setStep("upload"); setFile(null); setAnalysis(null); setReport(null); }}><ArrowLeft /> Start over</Button> : null}
+        title={step === "upload" ? (mode === "paste" ? (pasteRows ? "2. Check the sorted rows" : "1. Paste lead information") : "1. Upload a file") : step === "map" ? "2. Match your columns" : step === "preview" ? "3. Check the preview" : "Import finished"}
+        description={analysis && step !== "upload" ? `${analysis.fileName} · ${analysis.rows} rows` : mode === "paste" ? "Contact details, business field, city, email and phone are sorted into columns for you." : "CSV or Excel (.xlsx), up to 4 MB."}
+        action={step !== "upload" || pasteRows ? <Button size="sm" variant="ghost" onClick={reset}><ArrowLeft /> Start over</Button> : null}
       />
       <CardBody className="flex flex-col gap-4">
         {error ? <Alert tone="danger">{error}</Alert> : null}
-        {step === "upload" ? (
+        {step === "upload" && !pasteRows ? (
+          <div className="flex gap-1 rounded-md bg-surface-2 p-1" role="group" aria-label="Import from">
+            <Button size="sm" variant={mode === "file" ? "secondary" : "ghost"} aria-pressed={mode === "file"} onClick={() => setMode("file")}><FileUp /> Upload a file</Button>
+            <Button size="sm" variant={mode === "paste" ? "secondary" : "ghost"} aria-pressed={mode === "paste"} onClick={() => setMode("paste")}><ClipboardPaste /> Paste text</Button>
+          </div>
+        ) : null}
+
+        {step === "upload" && mode === "paste" ? (
+          <PastePanel
+            text={pasteText}
+            setText={setPasteText}
+            rows={pasteRows}
+            setRows={setPasteRows}
+            pending={pending}
+            onSpreadsheet={(t) => { setMode("file"); const f = new File([t], "Pasted rows.tsv", { type: "text/tab-separated-values" }); setFile(f); analyze(f); }}
+            onPreview={previewPasted}
+          />
+        ) : null}
+
+        {step === "upload" && mode === "file" ? (
           <label className={cn("flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border px-6 py-12 text-center hover:border-accent", pending && "opacity-60")}>
             <Upload className="size-8 text-subtle" />
             <span className="text-sm font-medium">{pending ? "Reading…" : "Choose a file"}</span>
@@ -167,7 +207,7 @@ export function ImportWizard({ fields }: { fields: { key: string; label: string 
             {step === "preview" ? (
               <div className="flex gap-2">
                 <Button variant="primary" disabled={pending} onClick={() => run(false)}><Upload /> {pending ? "Importing…" : `Import ${report.created + report.merged} records`}</Button>
-                <Button variant="ghost" onClick={() => setStep("map")}>Back to columns</Button>
+                <Button variant="ghost" onClick={() => setStep(fromPaste ? "upload" : "map")}>{fromPaste ? "Back to rows" : "Back to columns"}</Button>
               </div>
             ) : (
               <div className="flex gap-2">

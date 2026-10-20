@@ -13,7 +13,7 @@ const RULES: [RegExp, string][] = [
   [/healthtech|health tech|digital health|healthcare technology|diabetes tech|health ai/i, "healthtech"],
   [/cyber ?security|infosec/i, "cybersecurity"],
   [/data ?cent(er|re)/i, "datacenter"],
-  [/\bcpa\b|accounting firm|accountants?\b|bookkeep|tax prep/i, "cpa"],
+  [/\bcpa\b|accounting|accountants?\b|bookkeep|tax prep/i, "cpa"],
   [/\blaw\b|law firm|attorney|legal services/i, "law"],
   [/property management|property manager/i, "property_management"],
   [/insurance/i, "insurance"],

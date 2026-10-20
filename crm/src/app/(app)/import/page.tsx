@@ -13,7 +13,8 @@ import type { ImportReport } from "@/lib/import/types";
 
 export const metadata = { title: "Import & Export" };
 
-export default async function ImportPage() {
+export default async function ImportPage({ searchParams }: { searchParams: Promise<{ mode?: string }> }) {
+  const { mode } = await searchParams;
   await requireUser("SALES");
   const [batches, openReviews] = await Promise.all([
     db.importBatch.findMany({ orderBy: { createdAt: "desc" }, take: 15, include: { createdBy: { select: { name: true } } } }),
@@ -21,9 +22,9 @@ export default async function ImportPage() {
   ]);
   return (
     <div>
-      <PageHeader title="Import & Export" description="Add leads from CSV or Excel. Imports only add or fill in; they never delete or overwrite what's already here." />
+      <PageHeader title="Import & Export" description="Add leads from CSV or Excel, or paste them in. Imports only add or fill in; they never delete or overwrite what's already here." />
       <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
-        <ImportWizard fields={IMPORT_FIELDS.map((f) => ({ key: f.key, label: f.label }))} />
+        <ImportWizard fields={IMPORT_FIELDS.map((f) => ({ key: f.key, label: f.label }))} initialMode={mode === "paste" ? "paste" : "file"} />
         <div className="flex flex-col gap-4">
           {openReviews ? (
             <Card className="border-warning/40">

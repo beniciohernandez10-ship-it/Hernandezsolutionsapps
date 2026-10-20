@@ -1,4 +1,4 @@
-import { Plus } from "lucide-react";
+import { ClipboardPaste, Plus } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/misc";
@@ -106,11 +106,18 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
         description={DESCRIPTIONS[filters.view]}
         actions={
           canWrite(user.role) ? (
-            <Button asChild variant="primary">
-              <Link href={`/leads/new${filters.view === "veterinary" ? "?industry=veterinary" : filters.view === "startups" ? "?startup=1" : ""}`}>
-                <Plus /> Add prospect
-              </Link>
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button asChild variant="secondary">
+                <Link href="/import?mode=paste">
+                  <ClipboardPaste /> Import
+                </Link>
+              </Button>
+              <Button asChild variant="primary">
+                <Link href={`/leads/new${filters.view === "veterinary" ? "?industry=veterinary" : filters.view === "startups" ? "?startup=1" : ""}`}>
+                  <Plus /> Add prospect
+                </Link>
+              </Button>
+            </div>
           ) : null
         }
       />
