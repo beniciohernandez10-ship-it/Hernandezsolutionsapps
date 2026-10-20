@@ -145,7 +145,8 @@ export function AppShell({ user, children, logout }: { user: ShellUser; children
 
   const brand = (small?: boolean) => (
     <Link href="/" className="flex items-center gap-2.5 px-1">
-      <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-accent text-xs font-bold text-white">HS</span>
+      {/* eslint-disable-next-line @next/next/no-img-element -- small static brand mark */}
+      <img src="/brand/mark.png" alt="" width={32} height={32} className="size-8 shrink-0 rounded-md" />
       {!small ? (
         <span className="min-w-0 leading-tight">
           <span className="block truncate text-[11px] uppercase tracking-[0.14em] text-nav-fg/70">Hernandez Solutions</span>
