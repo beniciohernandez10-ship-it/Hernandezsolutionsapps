@@ -56,3 +56,24 @@ export function fieldErrors(err: unknown): Record<string, string> {
   if (!(err instanceof ApiError) || !err.body.fields) return {};
   return Object.fromEntries(err.body.fields.map((f) => [f.path, f.message]));
 }
+
+/** Same-origin multipart upload with the CSRF token; errors handled like apiFetch. */
+export async function apiUpload<T>(path: string, form: FormData): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(path, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { accept: "application/json", "x-csrf-token": csrfToken() },
+      body: form,
+    });
+  } catch {
+    throw new ApiError(0, { code: "network", message: "We couldn't reach the server. Check your connection and try again." });
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    if (res.status === 413) throw new ApiError(413, { code: "too_large", message: "That file is too large." });
+    throw new ApiError(res.status, data?.error ?? { code: "internal", message: "Something went wrong. Please try again." });
+  }
+  return data as T;
+}

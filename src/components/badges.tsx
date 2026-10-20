@@ -1,5 +1,5 @@
 import { PRIORITY_LABEL, STATUS_LABEL, type Priority, type Status } from "@/lib/tickets/schemas";
-import { IconAlert, IconArrowDown, IconArrowUp, IconBolt, IconCheck, IconDash, IconInfo, IconLock, IconOpen, IconProgress, IconResolved, IconWaiting } from "./icons";
+import { IconAlert, IconArrowDown, IconArrowUp, IconBolt, IconCheck, IconClock, IconDash, IconInfo, IconLock, IconMail, IconOpen, IconProgress, IconResolved, IconWaiting } from "./icons";
 
 /* Every badge pairs an icon and a text label with its color, so status,
    priority and compliance never rely on color alone. */
@@ -72,6 +72,35 @@ export function SyncBadge({ status }: { status: string }) {
     <span className={`badge ${status === "failed" || status === "needs_review" ? "compliance-error" : status === "synchronized" ? "compliance-compliant" : ""}`}>
       <s.Icon size={13} />
       {s.label}
+    </span>
+  );
+}
+
+const SLA: Record<string, { label: string; Icon: typeof IconCheck; cls: string }> = {
+  breached: { label: "SLA missed", Icon: IconAlert, cls: "compliance-error" },
+  at_risk: { label: "SLA due soon", Icon: IconClock, cls: "compliance-inGracePeriod" },
+  met: { label: "Met", Icon: IconCheck, cls: "compliance-compliant" },
+  on_track: { label: "On track", Icon: IconClock, cls: "" },
+  paused: { label: "Paused", Icon: IconWaiting, cls: "" },
+};
+
+/** Staff-only service-level state. */
+export function SlaBadge({ state }: { state: string }) {
+  const s = SLA[state];
+  if (!s) return null;
+  return (
+    <span className={`badge ${s.cls}`}>
+      <s.Icon size={13} />
+      {s.label}
+    </span>
+  );
+}
+
+export function EmailBadge() {
+  return (
+    <span className="badge">
+      <IconMail size={13} />
+      By email
     </span>
   );
 }

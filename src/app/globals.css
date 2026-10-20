@@ -1106,3 +1106,180 @@ tbody tr:hover {
     display: block;
   }
 }
+
+/* ------------------------------------------------------------------ service desk: notifications, files, SLAs, inbox */
+.grid-2 {
+  grid-template-columns: 1fr;
+}
+@media (min-width: 720px) {
+  .grid-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.stack-tight {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+.check input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--color-accent);
+}
+.check.option {
+  display: flex;
+  align-items: flex-start;
+}
+.check.option > span {
+  display: flex;
+  flex-direction: column;
+}
+.check input:disabled + span {
+  opacity: 0.55;
+}
+fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+legend {
+  padding: 0;
+  margin-bottom: var(--space-2);
+}
+
+.bell {
+  position: relative;
+  padding-inline: var(--space-2);
+}
+.bell-count {
+  position: absolute;
+  top: 2px;
+  right: -2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+
+.notification-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+.notification-list a {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: inherit;
+  text-decoration: none;
+  transition: border-color var(--duration) var(--ease-out);
+}
+.notification-list a:hover {
+  border-color: var(--color-border-strong);
+}
+.notification-list .unread a {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-raised);
+}
+.notification-list .unread .title::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: var(--space-2);
+  border-radius: 50%;
+  background: currentColor;
+  vertical-align: middle;
+}
+
+.attachment {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+}
+.attachment-name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+.attachment .subtle {
+  flex-basis: 100%;
+  font-size: var(--text-xs);
+}
+/* The real file input is visually hidden; show focus on its label button. */
+#file-upload:focus-visible + label {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+label.btn[aria-disabled="true"] {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.email-body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 18rem;
+  overflow: auto;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-sunken);
+  font-size: var(--text-sm);
+}
+
+.hours-grid {
+  display: grid;
+  gap: var(--space-2);
+}
+.hours-row {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: 9rem 1fr;
+  align-items: center;
+}
+.hours-row .input {
+  width: auto;
+  min-width: 7rem;
+}
+@media (max-width: 480px) {
+  .hours-row {
+    grid-template-columns: 1fr;
+  }
+}
+.card table .input {
+  min-width: 5rem;
+}
+.card table {
+  display: block;
+  overflow-x: auto;
+}
+.grid > .field + .field {
+  margin-top: 0;
+}

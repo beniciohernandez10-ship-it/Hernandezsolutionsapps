@@ -34,6 +34,10 @@ export const IconPlus = (p: P) => (<svg {...base(p)}><path d="M12 5v14M5 12h14" 
 export const IconInbox = (p: P) => (<svg {...base(p)}><path d="M3 13h5l2 3h4l2-3h5" /><path d="M5 5h14l2 8v6H3v-6z" /></svg>);
 export const IconDevice = (p: P) => (<svg {...base(p)}><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M8 20h8M12 16v4" /></svg>);
 export const IconBack = (p: P) => (<svg {...base(p)}><path d="M19 12H5M11 18l-6-6 6-6" /></svg>);
+export const IconBell = (p: P) => (<svg {...base(p)}><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z" /><path d="M10 20a2 2 0 0 0 4 0" /></svg>);
+export const IconPaperclip = (p: P) => (<svg {...base(p)}><path d="m20 11-8.5 8.5a5 5 0 0 1-7-7L13 4a3.5 3.5 0 0 1 5 5l-8.5 8.5a2 2 0 0 1-3-3L14 7" /></svg>);
+export const IconClock = (p: P) => (<svg {...base(p)}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>);
+export const IconMail = (p: P) => (<svg {...base(p)}><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></svg>);
 export const IconSync = (p: P) => (<svg {...base(p)}><path d="M20 11a8 8 0 0 0-14.9-3M4 13a8 8 0 0 0 14.9 3" /><path d="M4 4v4h4M20 20v-4h-4" /></svg>);
 export const IconMicrosoft = (p: P) => (
   <svg width={p.size ?? 18} height={p.size ?? 18} viewBox="0 0 21 21" aria-hidden focusable={false}>

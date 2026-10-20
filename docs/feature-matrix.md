@@ -39,11 +39,18 @@
 | Clients | Responsive browser portal | Implemented | Desktop + phone tested |
 | | Installable PWA | Implemented | Not yet tested on physical devices |
 | | Native desktop / mobile apps | Planned | apps.md |
-| Website | Client Portal nav link + `/client-portal` redirect | Blocked | Website repo/Vercel project not accessible; snippets ready |
+| Website | Client Portal nav link + `/client-portal` redirect | Implemented | Live on thehernandezsolutions.com |
 | | Return links portal → website | Implemented | |
-| Deployment | Vercel project, domain `portal.thehernandezsolutions.com` | Blocked | Needs Vercel team/project confirmation; nothing deployed |
+| Deployment | Vercel project, domain `portal.thehernandezsolutions.com` | Implemented | Auto-deploys from main; Neon attached |
 | Branding | Semantic tokens, brand override file | Implemented | |
 | | Hernandez Solutions colors, fonts, logo | Blocked | Only `#05060a` confirmed; awaiting brand values |
 | | Page transitions and motion (reduced-motion aware) | Implemented | |
 | Security | CSP with nonce, security headers, host allow-list, rate limiting, redacted logs | Implemented | |
-| Phase 6 | Attachments, notifications, email intake, SLAs | Planned | roadmap.md |
+| Notifications | In-app notifications (bell, list, per-ticket read) | Implemented | Fan-out via the job queue; never notifies the actor |
+| | Email notifications (Resend), per-user preferences | Implemented | Off until RESEND_API_KEY + EMAIL_FROM are set; no message text in email; email-setup.md |
+| SLAs | Per-customer policies, business hours, holidays, time zones (DST-safe) | Implemented | Operators manage at Administration → Service levels |
+| | Pause while waiting/resolved, warnings, breaches, staff-only display, attainment | Implemented | Hidden from customers in app and RLS; sweep runs on portal use + daily cron |
+| Attachments | Upload, download, content-based type checks, internal files | Implemented | Private Vercel Blob store required in production; 4 MB per upload |
+| | Malware scanning | Not built | No scanner on Vercel Blob; files labelled "not virus-scanned" |
+| Email intake | Verified Resend webhook, reply-by-email via one-time reply addresses | Implemented | Off until inbound domain + webhook secret are set |
+| | Review inbox for unmatched email, convert to ticket | Implemented | Service managers only |

@@ -1,9 +1,15 @@
-import { asSystem, type Queryable } from "./db";
+import { asSystem } from "./db";
+import { enqueue } from "./jobs-queue";
 import { log, errorSummary } from "./log";
 import { ProviderError } from "./integrations/http";
 import { syncIntuneDevices } from "./integrations/graph";
 import { syncAteraAgents, verifyAteraMapping } from "./integrations/atera";
 import { purgeExpiredAuthState } from "./auth/session";
+import { fanOutTicketEvent, notifySlaEvents, sendNotificationEmail } from "./notify/service";
+import { sweepSla } from "./sla/service";
+import { ingestInboundEmail } from "./email/inbound";
+
+export { enqueue };
 
 /**
  * Durable job queue / transactional outbox in PostgreSQL.
@@ -32,6 +38,10 @@ const handlers = new Map<string, Handler>([
   ["intune.sync_devices", (j) => syncIntuneDevices(j.customer_id!)],
   ["atera.verify_mapping", (j) => verifyAteraMapping(j.customer_id!, String(j.payload.connectionId))],
   ["atera.sync_agents", (j) => syncAteraAgents(j.customer_id!)],
+  ["notify.ticket", (j) => fanOutTicketEvent(j.payload)],
+  ["email.notification", (j) => sendNotificationEmail(j.payload)],
+  ["email.ingest", (j) => ingestInboundEmail(String(j.payload.inboundId))],
+  ["sla.sweep", async () => notifySlaEvents(await sweepSla())],
   [
     "atera.ticket_write",
     async () => {
@@ -44,14 +54,6 @@ const handlers = new Map<string, Handler>([
 
 export function registerJobHandler(kind: string, h: Handler) {
   handlers.set(kind, h);
-}
-
-export async function enqueue(tx: Queryable, kind: string, customerId: string | null, payload: object = {}, dedupeKey?: string) {
-  await tx.query(
-    `insert into jobs (kind, customer_id, payload, dedupe_key) values ($1, $2, $3, $4)
-     on conflict (dedupe_key) do nothing`,
-    [kind, customerId, JSON.stringify(payload), dedupeKey ?? null],
-  );
 }
 
 export async function claimJobs(limit = 5, lockSeconds = 300): Promise<Job[]> {
@@ -132,11 +134,40 @@ export async function scheduleSyncs(now = new Date()) {
   });
 }
 
+/** Enqueues an SLA sweep, at most once per minute however often it is asked for. */
+export async function scheduleSlaSweep(now = new Date()) {
+  await asSystem((tx) => enqueue(tx, "sla.sweep", null, {}, `sla.sweep:${now.toISOString().slice(0, 16)}`));
+}
+
+/** Deletes finished jobs and expired reply addresses after a retention period. */
+export async function housekeeping() {
+  await asSystem(async (tx) => {
+    await tx.query("delete from jobs where status = 'succeeded' and updated_at < now() - interval '14 days'");
+    await tx.query("delete from email_reply_tokens where expires_at < now()");
+  });
+}
+
+/**
+ * Runs queued work right after a request finishes (Next.js after()), so
+ * notifications go out within seconds instead of waiting for the daily cron.
+ * Safe to call often: claiming uses SKIP LOCKED and the sweep is deduplicated.
+ */
+export async function drainSoon(opts: { sweep?: boolean } = {}) {
+  try {
+    if (opts.sweep) await scheduleSlaSweep();
+    await processJobs({ limit: 20, deadlineMs: 8_000 });
+  } catch (err) {
+    log.error("jobs.drain_failed", { error: errorSummary(err) });
+  }
+}
+
 export async function cronTick() {
   await scheduleSyncs();
+  await scheduleSlaSweep();
   const result = await processJobs();
   try {
     await purgeExpiredAuthState();
+    await housekeeping();
   } catch (err) {
     log.error("housekeeping.failed", { error: errorSummary(err) });
   }

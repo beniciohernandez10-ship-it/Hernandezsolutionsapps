@@ -17,7 +17,9 @@ export function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const isDev = process.env.NODE_ENV === "development";
   const https = request.nextUrl.protocol === "https:" || request.headers.get("x-forwarded-proto") === "https";
-  const csp = [
+  // Downloaded files are untrusted content: no scripts, no styles, sandboxed, even if a browser renders one.
+  const isFile = request.nextUrl.pathname.startsWith("/api/attachments/");
+  const pageCsp = [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""}`,
     `style-src 'self' 'nonce-${nonce}'`,
@@ -32,6 +34,7 @@ export function proxy(request: NextRequest) {
     "frame-ancestors 'none'",
     ...(https ? ["upgrade-insecure-requests"] : []),
   ].join("; ");
+  const csp = isFile ? "default-src 'none'; img-src 'self'; sandbox; frame-ancestors 'none'" : pageCsp;
 
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);

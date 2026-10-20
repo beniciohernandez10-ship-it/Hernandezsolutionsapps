@@ -28,6 +28,17 @@ export interface AppConfig {
     baseUrl: string;
   };
   atera: { baseUrl: string };
+  email: {
+    /** Resend API key; without it notifications stay in-app only. */
+    resendApiKey?: string;
+    /** Verified sender, e.g. "Hernandez Solutions IT Center <support@thehernandezsolutions.com>". */
+    from?: string;
+    /** Domain whose mail Resend receives; enables reply-by-email and intake. */
+    inboundDomain?: string;
+    /** Signing secret of the Resend "email.received" webhook. */
+    webhookSecret?: string;
+  };
+  attachments: { maxUploadBytes: number; maxEmailBytes: number };
   cronSecret?: string;
 }
 
@@ -75,6 +86,14 @@ export function loadConfig(env: Env = process.env): AppConfig {
       baseUrl: env.GRAPH_BASE_URL ?? "https://graph.microsoft.com",
     },
     atera: { baseUrl: env.ATERA_BASE_URL ?? "https://app.atera.com" },
+    email: {
+      resendApiKey: env.RESEND_API_KEY || undefined,
+      from: env.EMAIL_FROM || undefined,
+      inboundDomain: env.INBOUND_EMAIL_DOMAIN?.trim().toLowerCase() || undefined,
+      webhookSecret: env.RESEND_WEBHOOK_SECRET || undefined,
+    },
+    // Uploads pass through a Vercel Function (4.5 MB request limit); email attachments are fetched server-side.
+    attachments: { maxUploadBytes: 4 * 1024 * 1024, maxEmailBytes: 10 * 1024 * 1024 },
     cronSecret: env.CRON_SECRET || undefined,
   };
 }
@@ -91,3 +110,8 @@ export function setConfigForTesting(next: Partial<AppConfig> | undefined) {
 export function secureCookies() {
   return config().appOrigin.startsWith("https://");
 }
+
+/** Outbound email is configured (API key and a sender). */
+export const emailSendingEnabled = () => Boolean(config().email.resendApiKey && config().email.from);
+/** Inbound email is configured (sending, plus a receiving domain and webhook secret). */
+export const emailIntakeEnabled = () => emailSendingEnabled() && Boolean(config().email.inboundDomain && config().email.webhookSecret);

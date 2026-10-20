@@ -58,7 +58,15 @@ export default async function Overview() {
           <Stat label="Resolved (30 days)" value={s.resolved30d} href="/portal/tickets?status=resolved" />
           {caps.staff && <Stat label="Unassigned" value={s.unassigned} href="/portal/tickets?assigned=unassigned" />}
           {caps.staff && <Stat label="Assigned to me" value={s.assignedToMe} href="/portal/tickets?assigned=me" />}
+          {caps.staff && <Stat label="SLA missed (open)" value={s.slaBreached} href="/portal/tickets?status=active" />}
+          {caps.staff && <Stat label="SLA due soon" value={s.slaAtRisk} href="/portal/tickets?status=active" />}
         </div>
+        {caps.staff && s.slaFirstResponseSample30d > 0 && (
+          <p className="subtle">
+            First-response target met on {s.slaFirstResponseMet30d} of {s.slaFirstResponseSample30d} tickets with a service level in the last 30 days
+            ({Math.round((s.slaFirstResponseMet30d / s.slaFirstResponseSample30d) * 100)}%). Technicians only.
+          </p>
+        )}
         <p className="subtle">
           {s.medianFirstResponseSeconds !== null
             ? `Median first response over the last 30 days: ${formatDuration(s.medianFirstResponseSeconds)} (from ${s.respondedSample30d} ticket${s.respondedSample30d === 1 ? "" : "s"}). This is an observed figure, not an SLA commitment.`

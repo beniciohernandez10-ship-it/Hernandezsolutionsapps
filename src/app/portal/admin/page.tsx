@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requirePrincipal } from "@/lib/auth/current";
 import { listAteraConnections, listCustomersForOperator, listMembershipsForOperator } from "@/lib/admin/service";
 import { PageTransition } from "@/components/page-transition";
@@ -31,6 +32,7 @@ export default async function AdminPage() {
           <p className="eyebrow">Platform operator</p>
           <h1>Administration</h1>
         </div>
+        <Link className="btn" href="/portal/admin/sla" transitionTypes={["nav-forward"]}>Service levels</Link>
       </div>
       <p className="subtle">Changes here are audited. Sensitive changes ask you to sign in again if your last sign-in was a while ago.</p>
       <AdminConsole customers={customers} memberships={memberships} connections={connections} />

@@ -4,17 +4,23 @@ import { capabilities } from "@/lib/authz";
 import { config } from "@/lib/config";
 import { NavLinks, type NavItem } from "@/components/nav";
 import { SignOutButton } from "@/components/signout";
-import { IconExternal, IconMenu } from "@/components/icons";
+import { IconBell, IconExternal, IconMenu } from "@/components/icons";
+import { unreadCount } from "@/lib/notify/service";
+import { drainAfterResponse } from "@/lib/http/after-response";
 import { demoAllowed } from "@/lib/auth/demo";
 
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
   const { principal, csrfToken } = await requirePrincipal();
   const caps = capabilities(principal);
+  const unread = principal.memberships.length ? await unreadCount(principal).catch(() => 0) : 0;
+  // Keeps notifications and SLA checks moving between the daily cron runs.
+  drainAfterResponse({ sweep: true });
   const items: NavItem[] = [
     { href: "/portal", label: "Overview" },
     { href: "/portal/tickets", label: caps.staff ? "Tickets" : "My requests" },
     ...(caps.canCreate ? [{ href: "/portal/tickets/new", label: "New request" }] : []),
     ...(caps.orgView ? [{ href: "/portal/devices", label: "Devices" }] : []),
+    ...(caps.manager ? [{ href: "/portal/inbox", label: "Email inbox" }] : []),
     ...(caps.operator ? [{ href: "/portal/admin", label: "Administration" }] : []),
   ];
   const website = config().websiteUrl;
@@ -34,6 +40,18 @@ export default async function PortalLayout({ children }: { children: React.React
           </Link>
           <NavLinks items={items} className="nav" />
           <div className="header-actions">
+            {principal.memberships.length > 0 && (
+              <Link href="/portal/notifications" className="btn btn-ghost bell" transitionTypes={["nav-forward"]}>
+                <IconBell size={17} />
+                <span className="sr-only">Notifications</span>
+                {unread > 0 && (
+                  <span className="bell-count">
+                    {unread > 99 ? "99+" : unread}
+                    <span className="sr-only"> unread</span>
+                  </span>
+                )}
+              </Link>
+            )}
             <a className="btn btn-ghost website-link" href={website}>
               thehernandezsolutions.com <IconExternal size={14} />
             </a>
@@ -44,6 +62,8 @@ export default async function PortalLayout({ children }: { children: React.React
               <div className="mobile-panel">
                 <NavLinks items={items} />
                 <hr />
+                <Link href="/portal/notifications">Notifications{unread ? ` (${unread})` : ""}</Link>
+                <Link href="/portal/settings">Email settings</Link>
                 <a href={website}>Back to thehernandezsolutions.com</a>
                 <SignOutButton className="btn btn-ghost" />
                 <p className="subtle">Signed in as {principal.displayName}</p>

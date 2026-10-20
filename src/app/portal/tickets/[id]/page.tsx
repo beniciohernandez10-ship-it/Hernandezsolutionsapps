@@ -5,7 +5,10 @@ import { getTicket, listAssignableStaff, listDevices, listQueues } from "@/lib/t
 import { AppError } from "@/lib/errors";
 import { notFound } from "next/navigation";
 import { CATEGORY_LABEL, STATUS_LABEL, type Category, type Priority, type Status } from "@/lib/tickets/schemas";
-import { ComplianceBadge, InternalBadge, PriorityBadge, StatusBadge } from "@/components/badges";
+import { ComplianceBadge, EmailBadge, InternalBadge, PriorityBadge, SlaBadge, StatusBadge } from "@/components/badges";
+import { markRead } from "@/lib/notify/service";
+import { attachmentsEnabled } from "@/lib/attachments/storage";
+import { AttachmentPanel } from "./attachments";
 import { Time } from "@/components/time";
 import { PageTransition } from "@/components/page-transition";
 import { IconBack, IconCheck } from "@/components/icons";
@@ -21,7 +24,15 @@ const EVENT_TEXT: Record<string, (from: string | null, to: string | null) => str
   priority_changed: (f, t) => `changed priority from ${f} to ${t}`,
   device_linked: () => "linked a device",
   device_unlinked: () => "unlinked a device",
+  attachment_added: (_f, t) => (t === "internal" ? "added a file for technicians" : "added a file"),
+  sla_warning: (_f, t) => `was warned: ${t === "first_response" ? "first response" : "resolution"} target is coming up`,
+  sla_breached: (_f, t) => `recorded a missed ${t === "first_response" ? "first response" : "resolution"} target`,
 };
+
+function minutes(n: number) {
+  if (n < 60) return `${n} min`;
+  return `${Math.floor(n / 60)} h${n % 60 ? ` ${n % 60} min` : ""}`;
+}
 
 export default async function TicketPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
   const { id } = await params;
@@ -41,6 +52,9 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
     v.canLinkDevices ? listDevices(principal, t.customerId).then((d) => d.devices) : Promise.resolve([]),
   ]);
   const linked = new Set(t.devices.map((d) => d.id));
+  // Viewing a ticket clears its notifications.
+  await markRead(principal, { ticketId: t.id }).catch(() => 0);
+  const sla = t.slaDetail;
 
   type Item = { at: string; kind: "message"; m: (typeof t.messages)[number] } | { at: string; kind: "event"; e: (typeof t.events)[number] };
   const timeline: Item[] = [
@@ -100,6 +114,7 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
                         <strong>{item.m.authorName}</strong>
                         {item.m.authorIsStaff && <span className="subtle">Hernandez Solutions</span>}
                         {item.m.visibility === "internal" && <InternalBadge />}
+                        {item.m.source === "email" && <EmailBadge />}
                         <span className="subtle"><Time iso={item.m.createdAt} /></span>
                       </header>
                       {/* Rendered as text: React escapes it, and no HTML from users or providers is ever injected. */}
@@ -108,7 +123,7 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
                   </li>
                 ) : (
                   <li key={`${item.e.kind}-${item.at}`} className="event">
-                    {item.e.actorName ?? "Someone"} {EVENT_TEXT[item.e.kind]?.(item.e.fromValue, item.e.toValue) ?? item.e.kind} · <Time iso={item.at} />
+                    {item.e.actorName ?? (item.e.kind.startsWith("sla_") ? "The IT Center" : "Someone")} {EVENT_TEXT[item.e.kind]?.(item.e.fromValue, item.e.toValue) ?? item.e.kind} · <Time iso={item.at} />
                   </li>
                 ),
               )}
@@ -150,6 +165,37 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
               )}
             </dl>
           </section>
+          {sla && (
+            <section className="card tight" aria-labelledby="sla-h">
+              <h2 id="sla-h" className="eyebrow">Service level · technicians only</h2>
+              <dl className="kv">
+                <dt>Policy</dt>
+                <dd>{sla.policyName}</dd>
+                <dt>First response</dt>
+                <dd className="stack-tight">
+                  <SlaBadge state={sla.firstResponse.state} />
+                  <span className="subtle">
+                    {sla.firstResponse.respondedAt ? <>Responded <Time iso={sla.firstResponse.respondedAt} mode="absolute" /></> : <>Due <Time iso={sla.firstResponse.dueAt} mode="absolute" /></>}
+                  </span>
+                </dd>
+                <dt>Resolution</dt>
+                <dd className="stack-tight">
+                  <SlaBadge state={sla.resolution.state} />
+                  <span className="subtle">
+                    {sla.resolution.resolvedAt ? <>Resolved <Time iso={sla.resolution.resolvedAt} mode="absolute" /></> : <>Due <Time iso={sla.resolution.dueAt} mode="absolute" /></>}
+                    {sla.resolution.pausedMinutes > 0 && ` · paused ${minutes(sla.resolution.pausedMinutes)} of business time`}
+                  </span>
+                </dd>
+              </dl>
+            </section>
+          )}
+          <AttachmentPanel
+            ticketId={t.id}
+            attachments={t.attachments}
+            canUpload={v.canReply}
+            canInternal={v.canAddInternalNote}
+            enabled={attachmentsEnabled()}
+          />
           {v.canChangeStatus.length > 0 && <StatusControls ticketId={t.id} version={t.version} status={t.status} options={v.canChangeStatus} staff={v.isStaff} />}
           {v.canAssign && (
             <StaffControls ticketId={t.id} version={t.version} assigneeUserId={t.assigneeUserId} queueId={t.queueId} priority={t.priority} staff={staff} queues={queues} />

@@ -18,6 +18,8 @@ Phases follow the brief's order. Phases 1–2 are implemented in this repository
 
 ## Phase 6
 
+**Status (2026-10-19):** notifications, SLAs, attachments and email intake are implemented (see feature-matrix.md and email-setup.md). Not done: malware scanning of attachments, one-click unsubscribe links (email settings require sign-in), push notifications.
+
 ### Attachments
 Private object storage (Vercel Blob private store, or Azure Blob with SAS issued per request); upload via short-lived signed URL scoped to one ticket; max size (e.g. 15 MB) and allow-list of types; MIME detected from content, not extension; malware scan (e.g. Microsoft Defender for Storage or ClamAV worker) with quarantine before availability; downloads via authorized endpoint with `Content-Disposition: attachment` and `X-Content-Type-Options: nosniff`; retention follows the ticket; customer offboarding deletes blobs.
 **Done when:** tests show cross-customer download denied, oversize/mismatched type rejected, quarantined file not downloadable, internal-note attachment invisible to customers.

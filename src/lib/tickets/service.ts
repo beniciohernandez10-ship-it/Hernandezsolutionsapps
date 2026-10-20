@@ -13,6 +13,9 @@ import {
 } from "../authz";
 import { AppError, forbidden, notFound } from "../errors";
 import { config } from "../config";
+import { emitTicketEvent } from "../notify/service";
+import { applySlaOnCreate, applySlaTransition, slaBadge, slaSummary, type TicketSla } from "../sla/service";
+import { listAttachments, type AttachmentInfo } from "../attachments/service";
 import {
   addMessageSchema,
   createTicketSchema,
@@ -37,6 +40,8 @@ export interface TicketSummary {
   createdAt: string;
   updatedAt: string;
   version: number;
+  /** Staff only: worst open SLA state. Always null for customers. */
+  sla: "breached" | "at_risk" | null;
 }
 
 export interface TicketMessage {
@@ -46,6 +51,7 @@ export interface TicketMessage {
   visibility: "public" | "internal";
   body: string;
   createdAt: string;
+  source: "portal" | "email";
 }
 
 export interface TicketDetail extends TicketSummary {
@@ -59,6 +65,9 @@ export interface TicketDetail extends TicketSummary {
   messages: TicketMessage[];
   events: { kind: string; fromValue: string | null; toValue: string | null; actorName: string | null; createdAt: string }[];
   devices: { id: string; name: string; operatingSystem: string | null; complianceState: string | null }[];
+  attachments: AttachmentInfo[];
+  /** Staff only. */
+  slaDetail: TicketSla | null;
   viewer: {
     role: string;
     isStaff: boolean;
@@ -100,7 +109,9 @@ function scopeClause(p: Principal, params: unknown[]) {
 const SUMMARY_COLUMNS = `
   t.id, t.number, t.customer_id, c.name as customer_name, t.title, t.priority, t.category, t.status,
   ru.display_name as requester_name, au.display_name as assignee_name, q.name as queue_name,
-  t.created_at, t.updated_at, t.version`;
+  t.created_at, t.updated_at, t.version, t.sla_policy_id, t.first_response_at, t.resolved_at,
+  t.first_response_due_at, t.first_response_warn_at, t.resolution_due_at, t.resolution_warn_at,
+  t.sla_paused_since, t.sla_paused_minutes, t.resolution_breached_at`;
 
 const SUMMARY_JOINS = `
   from tickets t
@@ -109,7 +120,7 @@ const SUMMARY_JOINS = `
   left join users au on au.id = t.assignee_user_id
   left join queues q on q.id = t.queue_id`;
 
-function toSummary(r: Record<string, unknown>): TicketSummary {
+function toSummary(r: Record<string, unknown>, p?: Principal): TicketSummary {
   return {
     id: r.id as string,
     number: Number(r.number),
@@ -125,6 +136,7 @@ function toSummary(r: Record<string, unknown>): TicketSummary {
     createdAt: iso(r.created_at)!,
     updatedAt: iso(r.updated_at)!,
     version: Number(r.version),
+    sla: p && isStaffFor(p, r.customer_id as string) ? slaBadge(r) : null,
   };
 }
 
@@ -176,7 +188,7 @@ export async function listTickets(p: Principal, raw: Partial<Record<keyof ListTi
        limit $${params.length - 1} offset $${params.length}`,
       params,
     );
-    return { items: rows.rows.map(toSummary), total: Number(total.rows[0].n), page: f.page, pageSize: f.pageSize };
+    return { items: rows.rows.map((r) => toSummary(r, p)), total: Number(total.rows[0].n), page: f.page, pageSize: f.pageSize };
   });
 }
 
@@ -185,8 +197,9 @@ async function loadTicketRow(tx: Queryable, p: Principal, id: string) {
   const params: unknown[] = [id];
   const r = await tx.query(
     `select ${SUMMARY_COLUMNS}, t.description, t.requester_user_id, t.assignee_user_id, t.queue_id,
-            t.first_response_at, t.resolved_at, t.reopen_count
+            t.reopen_count, sp.name as sla_policy_name
        ${SUMMARY_JOINS}
+       left join sla_policies sp on sp.id = t.sla_policy_id
       where t.id = $1 and ${scopeClause(p, params)}`,
     params,
   );
@@ -220,7 +233,7 @@ export async function getTicket(p: Principal, id: string): Promise<TicketDetail>
     const staff = isStaffFor(p, customerId);
     const msgs = await tx.query(
       `select m.id, u.display_name, m.visibility, m.body, m.created_at,
-              app_author_is_staff(m.author_user_id, m.customer_id) as author_is_staff
+              app_author_is_staff(m.author_user_id, m.customer_id) as author_is_staff, m.source
          from ticket_messages m join users u on u.id = m.author_user_id
         where m.ticket_id = $1 and m.customer_id = $2 ${staff ? "" : "and m.visibility = 'public'"}
         order by m.created_at, m.id`,
@@ -229,9 +242,10 @@ export async function getTicket(p: Principal, id: string): Promise<TicketDetail>
     const events = await tx.query(
       `select e.kind, e.from_value, e.to_value, u.display_name, e.created_at
          from ticket_events e left join users u on u.id = e.actor_user_id
-        where e.ticket_id = $1 order by e.created_at, e.id`,
+        where e.ticket_id = $1 ${staff ? "" : "and e.kind not in ('sla_warning', 'sla_breached')"} order by e.created_at, e.id`,
       [id],
     );
+    const attachments = await listAttachments(tx, p, id, customerId);
     const devices = canSeeOrgFor(p, customerId)
       ? await tx.query(
           `select d.id, d.name, d.operating_system, d.compliance_state
@@ -242,7 +256,7 @@ export async function getTicket(p: Principal, id: string): Promise<TicketDetail>
       : { rows: [] as Record<string, unknown>[] };
     const statuses = allowedStatuses(p, row);
     return {
-      ...toSummary(row),
+      ...toSummary(row, p),
       description: row.description as string,
       requesterUserId: row.requester_user_id as string,
       assigneeUserId: (row.assignee_user_id as string) ?? null,
@@ -257,6 +271,7 @@ export async function getTicket(p: Principal, id: string): Promise<TicketDetail>
         visibility: m.visibility as "public" | "internal",
         body: m.body as string,
         createdAt: iso(m.created_at)!,
+        source: (m.source as "portal" | "email") ?? "portal",
       })),
       events: events.rows.map((e) => ({
         kind: e.kind as string,
@@ -271,6 +286,8 @@ export async function getTicket(p: Principal, id: string): Promise<TicketDetail>
         operatingSystem: (d.operating_system as string) ?? null,
         complianceState: (d.compliance_state as string) ?? null,
       })),
+      attachments,
+      slaDetail: staff ? slaSummary(row, (row.sla_policy_name as string) ?? null) : null,
       viewer: {
         role: roleFor(p, customerId)!,
         isStaff: staff,
@@ -294,7 +311,7 @@ function requestHash(body: unknown) {
  * principal's memberships; an Idempotency-Key makes retries return the
  * original result instead of creating duplicates.
  */
-export async function createTicket(p: Principal, raw: unknown, idempotencyKey: string) {
+export async function createTicket(p: Principal, raw: unknown, idempotencyKey: string, opts: { source?: "portal" | "email" } = {}) {
   if (!/^[A-Za-z0-9_-]{8,128}$/.test(idempotencyKey)) {
     throw new AppError(400, "bad_request", "A valid Idempotency-Key header is required.");
   }
@@ -325,9 +342,9 @@ export async function createTicket(p: Principal, raw: unknown, idempotencyKey: s
     }
 
     const t = await tx.query<{ id: string; number: string }>(
-      `insert into tickets (customer_id, requester_user_id, title, description, priority, category)
-       values ($1, $2, $3, $4, $5, $6) returning id, number`,
-      [customerId, p.userId, input.title, input.description, input.priority, input.category],
+      `insert into tickets (customer_id, requester_user_id, title, description, priority, category, source)
+       values ($1, $2, $3, $4, $5, $6, $7) returning id, number`,
+      [customerId, p.userId, input.title, input.description, input.priority, input.category, opts.source ?? "portal"],
     );
     const ticket = { id: t.rows[0].id, number: Number(t.rows[0].number) };
     await tx.query(
@@ -338,7 +355,9 @@ export async function createTicket(p: Principal, raw: unknown, idempotencyKey: s
       if (!canSeeOrgFor(p, customerId)) throw forbidden("You cannot link devices to tickets.");
       await linkDeviceTx(tx, p, ticket.id, customerId, input.deviceId);
     }
-    await audit(tx, p, "ticket.create", customerId, "ticket", ticket.id, { number: ticket.number, priority: input.priority });
+    await applySlaOnCreate(tx, ticket.id);
+    await emitTicketEvent(tx, ticket.id, "created");
+    await audit(tx, p, "ticket.create", customerId, "ticket", ticket.id, { number: ticket.number, priority: input.priority, source: opts.source ?? "portal" });
     await tx.query(
       "update idempotency_keys set status_code = 201, response = $3 where user_id = $1 and scope = 'ticket.create' and key = $2",
       [p.userId, idempotencyKey, JSON.stringify(ticket)],
@@ -347,7 +366,7 @@ export async function createTicket(p: Principal, raw: unknown, idempotencyKey: s
   });
 }
 
-export async function addMessage(p: Principal, ticketId: string, raw: unknown) {
+export async function addMessage(p: Principal, ticketId: string, raw: unknown, opts: { source?: "portal" | "email" } = {}) {
   const input = addMessageSchema.parse(raw);
   return withUser(p.userId, async (tx) => {
     const row = await loadTicketRow(tx, p, ticketId);
@@ -366,9 +385,9 @@ export async function addMessage(p: Principal, ticketId: string, raw: unknown) {
     }
 
     const m = await tx.query<{ id: string }>(
-      `insert into ticket_messages (ticket_id, customer_id, author_user_id, visibility, body)
-       values ($1, $2, $3, $4, $5) returning id`,
-      [ticketId, customerId, p.userId, input.visibility, input.body],
+      `insert into ticket_messages (ticket_id, customer_id, author_user_id, visibility, body, source)
+       values ($1, $2, $3, $4, $5, $6) returning id`,
+      [ticketId, customerId, p.userId, input.visibility, input.body, opts.source ?? "portal"],
     );
     const sets = ["updated_at = now()", "version = version + 1"];
     if (staff && input.visibility === "public") sets.push("first_response_at = coalesce(first_response_at, now())");
@@ -382,10 +401,13 @@ export async function addMessage(p: Principal, ticketId: string, raw: unknown) {
         "insert into ticket_events (ticket_id, customer_id, actor_user_id, kind, from_value, to_value) values ($1, $2, $3, $4, $5, $6)",
         [ticketId, customerId, p.userId, row.status === "resolved" ? "reopened" : "status_changed", row.status, newStatus],
       );
+      await applySlaTransition(tx, ticketId, { fromStatus: row.status as Status, toStatus: newStatus });
     }
+    await emitTicketEvent(tx, ticketId, input.visibility === "internal" ? "internal_note" : "public_reply", null, m.rows[0].id);
     await audit(tx, p, input.visibility === "internal" ? "ticket.note" : "ticket.reply", customerId, "ticket", ticketId, {
       messageId: m.rows[0].id,
       statusChange: newStatus,
+      source: opts.source ?? "portal",
     });
     return { id: m.rows[0].id, status: (newStatus ?? row.status) as Status };
   });
@@ -458,6 +480,13 @@ export async function updateTicket(p: Principal, ticketId: string, raw: unknown)
         [ticketId, customerId, p.userId, kind, from, to],
       );
     }
+    const statusChanged = Boolean(input.status && input.status !== row.status);
+    const priorityChanged = Boolean(input.priority && input.priority !== row.priority);
+    if (statusChanged || priorityChanged) {
+      await applySlaTransition(tx, ticketId, { fromStatus: row.status as Status, toStatus: (input.status ?? row.status) as Status, priorityChanged });
+    }
+    if (statusChanged) await emitTicketEvent(tx, ticketId, "status_changed", input.status!);
+    if (input.assigneeUserId && input.assigneeUserId !== row.assignee_user_id) await emitTicketEvent(tx, ticketId, "assigned", null, input.assigneeUserId);
     await audit(tx, p, "ticket.update", customerId, "ticket", ticketId, {
       changes: events.map(([k, f, t]) => ({ kind: k, from: f, to: t })),
       queueChanged: input.queueId !== undefined,
@@ -516,6 +545,10 @@ export async function dashboard(p: Principal) {
     const scope = scopeClause(p, params);
     params.push(p.userId);
     const me = params.length;
+    // SLA figures only cover customers the viewer is staff for.
+    params.push(customersWhere(p, (r) => STAFF_ROLES.includes(r)));
+    const staffCust = `t.customer_id = any($${params.length}::uuid[]) and t.sla_policy_id is not null`;
+    const breached = `(t.resolution_breached_at is not null or (t.first_response_at is null and t.first_response_breached_at is not null))`;
     const r = await tx.query<Record<string, string | null>>(
       `select
          count(*) filter (where t.status = 'open')::text as open,
@@ -527,7 +560,14 @@ export async function dashboard(p: Principal) {
          count(*) filter (where t.status <> 'resolved' and t.priority in ('high', 'urgent'))::text as high_priority,
          (percentile_cont(0.5) within group (order by extract(epoch from (t.first_response_at - t.created_at)))
             filter (where t.first_response_at is not null and t.created_at > now() - interval '30 days'))::text as median_first_response_s,
-         count(*) filter (where t.first_response_at is not null and t.created_at > now() - interval '30 days')::text as responded_30d
+         count(*) filter (where t.first_response_at is not null and t.created_at > now() - interval '30 days')::text as responded_30d,
+         count(*) filter (where ${staffCust} and t.status <> 'resolved' and ${breached})::text as sla_breached,
+         count(*) filter (where ${staffCust} and t.status <> 'resolved' and not ${breached}
+           and ((t.first_response_at is null and t.first_response_warned_at is not null)
+                or (t.sla_paused_since is null and t.resolution_warned_at is not null)))::text as sla_at_risk,
+         count(*) filter (where ${staffCust} and t.created_at > now() - interval '30 days' and t.first_response_at is not null)::text as sla_fr_sample,
+         count(*) filter (where ${staffCust} and t.created_at > now() - interval '30 days' and t.first_response_at is not null
+           and t.first_response_at <= t.first_response_due_at)::text as sla_fr_met
        from tickets t where ${scope}`,
       params,
     );
@@ -542,6 +582,10 @@ export async function dashboard(p: Principal) {
       highPriority: Number(x.high_priority),
       medianFirstResponseSeconds: x.median_first_response_s === null ? null : Number(x.median_first_response_s),
       respondedSample30d: Number(x.responded_30d),
+      slaBreached: Number(x.sla_breached),
+      slaAtRisk: Number(x.sla_at_risk),
+      slaFirstResponseMet30d: Number(x.sla_fr_met),
+      slaFirstResponseSample30d: Number(x.sla_fr_sample),
     };
   });
 }

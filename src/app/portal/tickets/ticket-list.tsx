@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ViewTransition } from "react";
 import type { TicketSummary } from "@/lib/tickets/service";
-import { PriorityBadge, StatusBadge } from "@/components/badges";
+import { PriorityBadge, SlaBadge, StatusBadge } from "@/components/badges";
 import { Time } from "@/components/time";
 import { IconInbox } from "@/components/icons";
 import type { Priority } from "@/lib/tickets/schemas";
@@ -33,6 +33,7 @@ export function TicketList({ items, showCustomer, emptyText }: { items: TicketSu
               </div>
             </div>
             <div className="row">
+              {t.sla && <SlaBadge state={t.sla} />}
               <PriorityBadge priority={t.priority as Priority} />
               <StatusBadge status={t.status} />
             </div>
