@@ -5,7 +5,7 @@ import { ProviderError } from "./integrations/http";
 import { syncIntuneDevices } from "./integrations/graph";
 import { syncAteraAgents, verifyAteraMapping } from "./integrations/atera";
 import { purgeExpiredAuthState } from "./auth/session";
-import { fanOutTicketEvent, notifySlaEvents, sendNotificationEmail } from "./notify/service";
+import { fanOutChangeEvent, fanOutTicketEvent, notifySlaEvents, sendNotificationEmail } from "./notify/service";
 import { sweepSla } from "./sla/service";
 import { autoCloseResolved } from "./tickets/service";
 import { ingestInboundEmail } from "./email/inbound";
@@ -40,6 +40,7 @@ const handlers = new Map<string, Handler>([
   ["atera.verify_mapping", (j) => verifyAteraMapping(j.customer_id!, String(j.payload.connectionId))],
   ["atera.sync_agents", (j) => syncAteraAgents(j.customer_id!)],
   ["notify.ticket", (j) => fanOutTicketEvent(j.payload)],
+  ["notify.change", (j) => fanOutChangeEvent(j.payload)],
   ["email.notification", (j) => sendNotificationEmail(j.payload)],
   ["email.ingest", (j) => ingestInboundEmail(String(j.payload.inboundId))],
   // One sweep for time-based ticket rules: SLA warnings/breaches and closing resolved tickets.

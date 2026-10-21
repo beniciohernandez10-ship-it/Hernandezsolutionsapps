@@ -200,11 +200,13 @@ export async function sendNotificationEmail(payload: unknown) {
   const { notificationId } = z.object({ notificationId: z.uuid() }).parse(payload);
   const ctx = await asSystem(async (tx) => {
     const r = await tx.query<Record<string, unknown>>(
-      `select n.id, n.kind, n.detail, n.user_id, n.emailed_at, n.ticket_id, n.customer_id, t.number, t.title, c.name as customer_name,
+      `select n.id, n.kind, n.detail, n.user_id, n.emailed_at, n.ticket_id, n.change_id, n.customer_id,
+              coalesce(t.number, ch.number) as number, coalesce(t.title, ch.title) as title, c.name as customer_name,
               u.email, u.status as user_status, a.display_name as actor_name,
               coalesce(p.email_enabled, true) as email_enabled,
               exists (select 1 from memberships m where m.user_id = n.user_id and m.customer_id = n.customer_id and m.revoked_at is null) as still_member
-         from notifications n join tickets t on t.id = n.ticket_id join customers c on c.id = n.customer_id
+         from notifications n left join tickets t on t.id = n.ticket_id left join change_requests ch on ch.id = n.change_id
+         join customers c on c.id = n.customer_id
          join users u on u.id = n.user_id left join users a on a.id = n.actor_user_id
          left join notification_preferences p on p.user_id = n.user_id where n.id = $1`,
       [notificationId],
@@ -213,7 +215,7 @@ export async function sendNotificationEmail(payload: unknown) {
     if (!row || row.emailed_at || row.user_status !== "active" || !row.still_member || !row.email_enabled) return null;
     const kind = row.kind as NotificationKind;
     // Requesters may only reply to their own tickets (enforced again on intake); internal and SLA mail never accepts replies.
-    const replyEnabled = emailIntakeEnabled() && REPLY_KINDS.includes(kind);
+    const replyEnabled = emailIntakeEnabled() && REPLY_KINDS.includes(kind) && Boolean(row.ticket_id);
     let replyTo: string | undefined;
     if (replyEnabled) {
       const token = replyToken(notificationId);
@@ -236,7 +238,8 @@ export async function sendNotificationEmail(payload: unknown) {
     ticketNumber: Number(row.number),
     ticketTitle: row.title as string,
     customerName: row.customer_name as string,
-    ticketUrl: `${origin}/portal/tickets/${row.ticket_id}`,
+    ticketUrl: row.change_id ? `${origin}/portal/changes/${row.change_id}` : `${origin}/portal/tickets/${row.ticket_id}`,
+    refLabel: row.change_id ? `Change CHG-${row.number}` : undefined,
     settingsUrl: `${origin}/portal/settings`,
     replyEnabled,
   });
@@ -252,9 +255,14 @@ export interface NotificationItem {
   kind: NotificationKind;
   detail: string | null;
   actorName: string | null;
-  ticketId: string;
+  ticketId: string | null;
+  changeId: string | null;
+  /** Number and title of the ticket or change. */
   ticketNumber: number;
   ticketTitle: string;
+  /** "#12" or "CHG-12". */
+  ref: string;
+  href: string;
   createdAt: string;
   read: boolean;
 }
@@ -262,9 +270,11 @@ export interface NotificationItem {
 export async function listNotifications(p: Principal, limit = 30): Promise<NotificationItem[]> {
   return withUser(p.userId, async (tx) => {
     const r = await tx.query<Record<string, unknown>>(
-      `select n.id, n.kind, n.detail, n.created_at, n.read_at, n.ticket_id, t.number, t.title, a.display_name as actor_name
-         from notifications n join tickets t on t.id = n.ticket_id left join users a on a.id = n.actor_user_id
-        where n.user_id = $1 order by n.created_at desc limit $2`,
+      `select n.id, n.kind, n.detail, n.created_at, n.read_at, n.ticket_id, n.change_id,
+              coalesce(t.number, c.number) as number, coalesce(t.title, c.title) as title, a.display_name as actor_name
+         from notifications n left join tickets t on t.id = n.ticket_id left join change_requests c on c.id = n.change_id
+         left join users a on a.id = n.actor_user_id
+        where n.user_id = $1 and (t.id is not null or c.id is not null) order by n.created_at desc limit $2`,
       [p.userId, Math.min(Math.max(limit, 1), 100)],
     );
     return r.rows.map((x) => ({
@@ -272,9 +282,12 @@ export async function listNotifications(p: Principal, limit = 30): Promise<Notif
       kind: x.kind as NotificationKind,
       detail: (x.detail as string) ?? null,
       actorName: (x.actor_name as string) ?? null,
-      ticketId: x.ticket_id as string,
+      ticketId: (x.ticket_id as string) ?? null,
+      changeId: (x.change_id as string) ?? null,
       ticketNumber: Number(x.number),
       ticketTitle: x.title as string,
+      ref: x.change_id ? `CHG-${x.number}` : `#${x.number}`,
+      href: x.change_id ? `/portal/changes/${x.change_id}` : `/portal/tickets/${x.ticket_id}`,
       createdAt: new Date(x.created_at as string).toISOString(),
       read: Boolean(x.read_at),
     }));
@@ -289,7 +302,7 @@ export async function unreadCount(p: Principal): Promise<number> {
 }
 
 /** Marks notifications read: given ids, all of one ticket's, or everything. */
-export async function markRead(p: Principal, target: { ids?: string[]; ticketId?: string; all?: boolean }) {
+export async function markRead(p: Principal, target: { ids?: string[]; ticketId?: string; changeId?: string; all?: boolean }) {
   return withUser(p.userId, async (tx) => {
     const where = ["user_id = $1", "read_at is null"];
     const params: unknown[] = [p.userId];
@@ -299,6 +312,9 @@ export async function markRead(p: Principal, target: { ids?: string[]; ticketId?
     } else if (target.ticketId) {
       params.push(target.ticketId);
       where.push(`ticket_id = $${params.length}`);
+    } else if (target.changeId) {
+      params.push(target.changeId);
+      where.push(`change_id = $${params.length}`);
     } else if (!target.all) return 0;
     const r = await tx.query(`update notifications set read_at = now() where ${where.join(" and ")}`, params);
     return r.rowCount;
@@ -343,4 +359,61 @@ export async function updatePreferences(p: Principal, raw: unknown): Promise<Pre
     ),
   );
   return v;
+}
+
+// ---------------------------------------------------------------- changes
+
+const changePayload = z.object({
+  changeId: z.uuid(),
+  event: z.enum(["change_approval_requested", "change_decided", "change_scheduled", "change_finished"]),
+  actorUserId: z.uuid().nullable(),
+  detail: z.string().max(40).nullable().optional(),
+});
+
+/** Job handler for notify.change. */
+export async function fanOutChangeEvent(payload: unknown) {
+  const p = changePayload.parse(payload);
+  return asSystem(async (tx) => {
+    const c = (
+      await tx.query<{ id: string; customer_id: string; change_type: string; created_by: string; implementer_user_id: string | null }>(
+        "select id, customer_id, change_type, created_by, implementer_user_id from change_requests where id = $1",
+        [p.changeId],
+      )
+    ).rows[0];
+    if (!c) return 0;
+    const members = await tx.query<{ user_id: string; role: string }>(
+      `select m.user_id, m.role from memberships m join users u on u.id = m.user_id
+        where m.customer_id = $1 and m.revoked_at is null and u.status = 'active'`,
+      [c.customer_id],
+    );
+    const role = new Map(members.rows.map((m) => [m.user_id, m.role]));
+    const admins = members.rows.filter((m) => m.role === "client_admin").map((m) => m.user_id);
+    const managers = members.rows.filter((m) => m.role === "service_manager").map((m) => m.user_id);
+    const isStaff = (u: string | null) => !!u && (role.get(u) === "technician" || role.get(u) === "service_manager");
+    const owners = [c.created_by, c.implementer_user_id].filter(isStaff) as string[];
+    let ids: string[] = [];
+    if (p.event === "change_approval_requested") ids = c.change_type === "emergency" || !admins.length ? managers : admins;
+    if (p.event === "change_decided") ids = owners;
+    if (p.event === "change_scheduled") ids = admins;
+    if (p.event === "change_finished") ids = [...admins, ...owners];
+    const seen = new Set<string>();
+    const recipients = ids.filter((u) => u !== p.actorUserId && !seen.has(u) && seen.add(u));
+    if (!recipients.length) return 0;
+    const prefs = await tx.query<Record<string, unknown>>(
+      `select u.id, u.email, u.is_demo, p.email_enabled, p.email_ticket_updates from users u
+         left join notification_preferences p on p.user_id = u.id where u.id = any($1::uuid[])`,
+      [recipients],
+    );
+    const byId = new Map(prefs.rows.map((r) => [r.id as string, r]));
+    for (const userId of recipients) {
+      const n = await tx.query<{ id: string }>(
+        "insert into notifications (user_id, customer_id, change_id, kind, actor_user_id, detail) values ($1, $2, $3, $4, $5, $6) returning id",
+        [userId, c.customer_id, c.id, p.event, p.actorUserId, p.detail ?? null],
+      );
+      const u = byId.get(userId);
+      const wants = u && !u.is_demo && u.email_enabled !== false && u.email_ticket_updates !== false && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(u.email));
+      if (wants && emailSendingEnabled()) await enqueue(tx, "email.notification", c.customer_id, { notificationId: n.rows[0].id }, `email:${n.rows[0].id}`);
+    }
+    return recipients.length;
+  });
 }

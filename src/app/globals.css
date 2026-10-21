@@ -1613,3 +1613,33 @@ label.btn[aria-disabled="true"] {
     display: none;
   }
 }
+
+/* ------------------------------------------------------------------ changes */
+.badge.change-scheduled,
+.badge.change-in_progress {
+  color: var(--color-info);
+}
+.badge.change-pending_approval,
+.badge.change-draft {
+  border-style: dashed;
+  color: var(--color-text-muted);
+}
+.badge.change-failed,
+.badge.change-rejected {
+  color: var(--color-danger);
+  border-style: dashed;
+}
+.badge.change-completed {
+  color: var(--color-success);
+}
+.tab-link {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+.tab-link[aria-current="page"] {
+  background: var(--color-accent-soft);
+  color: var(--color-text);
+}

@@ -34,10 +34,10 @@ export default async function NotificationsPage() {
         <ul className="notification-list" role="list">
           {items.map((n) => (
             <li key={n.id} className={n.read ? "" : "unread"}>
-              <Link href={`/portal/tickets/${n.ticketId}`} transitionTypes={["nav-forward"]}>
+              <Link href={n.href} transitionTypes={["nav-forward"]}>
                 <span className="title">
                   {!n.read && <span className="sr-only">Unread: </span>}
-                  <span className="ticket-number">#{n.ticketNumber}</span> {n.ticketTitle}
+                  <span className="ticket-number">{n.ref}</span> {n.ticketTitle}
                 </span>
                 <span className="subtle">
                   {describeNotification(n.kind, n.actorName, n.detail)} · <Time iso={n.createdAt} />

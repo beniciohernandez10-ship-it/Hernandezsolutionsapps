@@ -34,7 +34,6 @@ export function ArticleEditor({ initial, customers, canGlobal }: { initial: Arti
     try {
       const r = await apiFetch<{ id: string }>(d.id ? `/api/kb/${d.id}` : "/api/kb", { method: d.id ? "PUT" : "POST", body });
       router.push(`/portal/kb/${r.id}`, { transitionTypes: ["nav-forward"] } as never);
-      router.refresh();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Couldn't save.");
       setErrors(fieldErrors(e));

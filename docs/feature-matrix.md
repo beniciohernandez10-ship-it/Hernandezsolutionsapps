@@ -63,5 +63,7 @@
 | Reports | Monthly service report per client: volume, response/resolution medians, categories, priorities, top requesters | Implemented | /portal/reports; print/PDF; client admins see their own without SLA or comments |
 | | SLA attainment, survey comments, CSV export | Implemented | Technicians only; CSV formulas neutralised |
 | Surveys | Requester rates a resolved request (👍/👎 + comment), changeable until closed | Implemented | RLS-enforced |
+| Change management | Planned changes: type, risk, window, impact, implementation/backout plans, linked requests | Implemented | /portal/changes calendar; technicians create and run |
+| | Approval: standard pre-approved, normal by client admin, emergency by service manager; scheduled/finished notices | Implemented | Editing an approved change sends it back for approval |
 | Email intake | Verified Resend webhook, reply-by-email via one-time reply addresses | Implemented | Off until inbound domain + webhook secret are set |
 | | Review inbox for unmatched email, convert to ticket | Implemented | Service managers only |

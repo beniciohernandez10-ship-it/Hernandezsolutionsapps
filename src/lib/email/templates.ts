@@ -15,7 +15,11 @@ export type NotificationKind =
   | "sla_breached"
   | "attachment_added"
   | "approval_requested"
-  | "approval_decided";
+  | "approval_decided"
+  | "change_approval_requested"
+  | "change_decided"
+  | "change_scheduled"
+  | "change_finished";
 
 /** Marker above which an email reply is read; everything below is ignored. */
 export const REPLY_MARKER = "##- Reply above this line to add it to your request -##";
@@ -47,6 +51,14 @@ export function describeNotification(kind: NotificationKind, actor: string | nul
       return `${who} submitted a request that needs your approval.`;
     case "approval_decided":
       return detail === "rejected" ? `${who} did not approve this request.` : `${who} approved this request.`;
+    case "change_approval_requested":
+      return `${who} submitted a planned change that needs your approval.`;
+    case "change_decided":
+      return detail === "rejected" ? `${who} did not approve this change.` : `${who} approved this change.`;
+    case "change_scheduled":
+      return "Planned maintenance is scheduled. Open it to see the window and what to expect.";
+    case "change_finished":
+      return detail === "failed" ? "Planned maintenance didn't go as planned and was backed out." : "Planned maintenance is complete.";
   }
 }
 
@@ -61,6 +73,10 @@ const SUBJECT_SUFFIX: Record<NotificationKind, string> = {
   attachment_added: "New file",
   approval_requested: "Approval needed",
   approval_decided: "Approval decision",
+  change_approval_requested: "Change approval needed",
+  change_decided: "Change decision",
+  change_scheduled: "Planned maintenance",
+  change_finished: "Maintenance update",
 };
 
 const escapeHtml = (s: string) =>
@@ -75,6 +91,8 @@ export interface NotificationEmailInput {
   actorName: string | null;
   ticketNumber: number;
   ticketTitle: string;
+  /** "Request #12" (default) or "Change CHG-12". */
+  refLabel?: string;
   customerName: string;
   ticketUrl: string;
   settingsUrl: string;
@@ -84,17 +102,19 @@ export interface NotificationEmailInput {
 
 export function renderNotificationEmail(i: NotificationEmailInput) {
   const title = oneLine(i.ticketTitle, 120);
-  const subject = `[#${i.ticketNumber}] ${title} · ${SUBJECT_SUFFIX[i.kind]}`;
+  const ref = i.refLabel ?? `Request #${i.ticketNumber}`;
+  const shortRef = i.refLabel ? i.refLabel.replace(/^Change /, "") : `#${i.ticketNumber}`;
+  const subject = `[${shortRef}] ${title} · ${SUBJECT_SUFFIX[i.kind]}`;
   const line = describeNotification(i.kind, i.actorName ? oneLine(i.actorName, 80) : null, i.detail);
   const replyText = i.replyEnabled ? "You can reply to this email to add a message to your request." : "Open the request to respond.";
   const text = [
     ...(i.replyEnabled ? [REPLY_MARKER, ""] : []),
-    `Request #${i.ticketNumber}: ${title}`,
+    `${ref}: ${title}`,
     i.customerName,
     "",
     line,
     "",
-    `Open the request: ${i.ticketUrl}`,
+    `Open it: ${i.ticketUrl}`,
     replyText,
     "",
     "Hernandez Solutions IT Center",
@@ -106,10 +126,10 @@ ${i.replyEnabled ? `<div style="color:#9ca3af;font-size:11px;padding:8px 16px">$
 <table role="presentation" width="100%" style="max-width:560px;background:#ffffff;border:1px solid #e5e7eb;border-radius:8px" cellpadding="0" cellspacing="0">
 <tr><td style="padding:20px 24px;border-bottom:1px solid #e5e7eb;font-size:13px;color:#6b7280">Hernandez Solutions IT Center · ${escapeHtml(oneLine(i.customerName, 120))}</td></tr>
 <tr><td style="padding:24px">
-<p style="margin:0 0 4px;font-size:13px;color:#6b7280">Request #${i.ticketNumber}</p>
+<p style="margin:0 0 4px;font-size:13px;color:#6b7280">${escapeHtml(ref)}</p>
 <h1 style="margin:0 0 16px;font-size:18px;line-height:1.35">${escapeHtml(title)}</h1>
 <p style="margin:0 0 20px;font-size:15px">${escapeHtml(line)}</p>
-<a href="${escapeHtml(i.ticketUrl)}" style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;padding:10px 16px;border-radius:6px;font-size:14px">Open request #${i.ticketNumber}</a>
+<a href="${escapeHtml(i.ticketUrl)}" style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;padding:10px 16px;border-radius:6px;font-size:14px">Open ${escapeHtml(ref.charAt(0).toLowerCase() + ref.slice(1))}</a>
 <p style="margin:20px 0 0;font-size:13px;color:#6b7280">${escapeHtml(replyText)}</p>
 </td></tr>
 <tr><td style="padding:16px 24px;border-top:1px solid #e5e7eb;font-size:12px;color:#9ca3af">You get this because you're part of this request. <a href="${escapeHtml(i.settingsUrl)}" style="color:#6b7280">Email settings</a></td></tr>
