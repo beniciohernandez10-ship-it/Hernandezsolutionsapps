@@ -54,5 +54,8 @@
 | | Malware scanning | Not built | No scanner on Vercel Blob; files labelled "not virus-scanned" |
 | Service catalog | Request types with custom forms, per-customer or global | Implemented | Administration → Service catalog; six starter templates |
 | | Approval by the client admin (service manager if none), fulfilment checklist | Implemented | Checklist built from the template by a DB function; staff-only edits |
+| Knowledge base | Articles for all clients, one client, or technicians; drafts | Implemented | 7 starter articles from the public Help Center |
+| | Full-text search, suggestions while typing a request, helpful votes, views | Implemented | Rendered from a Markdown subset, never raw HTML |
+| Lifecycle | Resolution details required; auto-close after CLOSE_AFTER_DAYS (5) | Implemented | Customers can't reopen closed tickets |
 | Email intake | Verified Resend webhook, reply-by-email via one-time reply addresses | Implemented | Off until inbound domain + webhook secret are set |
 | | Review inbox for unmatched email, convert to ticket | Implemented | Service managers only |

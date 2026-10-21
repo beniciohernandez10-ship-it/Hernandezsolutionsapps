@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiFetch, ApiError, fieldErrors } from "@/components/client-api";
 import { CATEGORIES, CATEGORY_LABEL, PRIORITIES, PRIORITY_LABEL } from "@/lib/tickets/schemas";
@@ -26,6 +27,32 @@ export function NewTicketForm({ orgs, devices }: Props) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const visibleDevices = devices.filter((d) => d.customerId === customerId);
+  // Knowledge-base articles that might answer the request, refreshed as the person types.
+  const [text, setText] = useState("");
+  const [suggestions, setSuggestions] = useState<{ id: string; title: string; summary: string }[]>([]);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (timer.current) clearTimeout(timer.current);
+    if (text.trim().length < 4) {
+      setSuggestions([]);
+      return;
+    }
+    timer.current = setTimeout(async () => {
+      try {
+        const r = await apiFetch<{ items: { id: string; title: string; summary: string }[] }>(`/api/kb/suggest?q=${encodeURIComponent(text.slice(0, 300))}`);
+        setSuggestions(r.items.slice(0, 4));
+      } catch {
+        setSuggestions([]);
+      }
+    }, 450);
+    return () => {
+      if (timer.current) clearTimeout(timer.current);
+    };
+  }, [text]);
+  const onText = (e: React.FormEvent<HTMLFormElement>) => {
+    const fd = new FormData(e.currentTarget);
+    setText(`${fd.get("title") ?? ""} ${fd.get("description") ?? ""}`);
+  };
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -66,7 +93,7 @@ export function NewTicketForm({ orgs, devices }: Props) {
     ) : null;
 
   return (
-    <form className="card stack" onSubmit={onSubmit} noValidate>
+    <form className="card stack" onSubmit={onSubmit} onInput={onText} noValidate>
       {formError && (
         <div className="alert alert-danger" role="alert">
           <IconAlert />
@@ -99,6 +126,20 @@ export function NewTicketForm({ orgs, devices }: Props) {
         <textarea id="description" name="description" className="textarea" maxLength={20000} required aria-invalid={Boolean(errors.description)} aria-describedby={`description-hint${errors.description ? " description-err" : ""}`} />
         {err("description")}
       </div>
+      {suggestions.length > 0 && (
+        <aside className="kb-suggest" aria-live="polite" aria-label="Articles that might help">
+          <strong>These might help right away</strong>
+          <ul>
+            {suggestions.map((s) => (
+              <li key={s.id}>
+                <Link href={`/portal/kb/${s.id}`} target="_blank" rel="noopener">{s.title}</Link>
+                {s.summary && <span className="subtle"> · {s.summary}</span>}
+              </li>
+            ))}
+          </ul>
+          <span className="subtle">They open in a new tab, so you won&apos;t lose what you&apos;ve typed.</span>
+        </aside>
+      )}
       <fieldset className="field" aria-describedby={errors.priority ? "priority-err" : undefined}>
         <legend className="label">How urgent is it?</legend>
         <div className="radio-cards">
