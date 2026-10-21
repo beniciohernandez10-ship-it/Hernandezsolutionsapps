@@ -18,6 +18,7 @@ import { applySlaOnCreate, applySlaTransition, slaBadge, slaSummary, type Ticket
 import { listAttachments, type AttachmentInfo } from "../attachments/service";
 import { approvalFor, listTasks, type ApprovalInfo, type TicketTask } from "../catalog/read";
 import { relatedTickets, type RelatedTickets } from "../productivity/service";
+import { surveyFor, type Survey } from "../surveys/service";
 import {
   addMessageSchema,
   createTicketSchema,
@@ -79,6 +80,8 @@ export interface TicketDetail extends TicketSummary {
   tasks: TicketTask[];
   /** Parent, child and merged-into requests the viewer can see. */
   related: RelatedTickets;
+  /** The requester's rating, visible to them, their client admins and staff. */
+  survey: Survey | null;
   /** Staff only. */
   slaDetail: TicketSla | null;
   viewer: {
@@ -90,6 +93,8 @@ export interface TicketDetail extends TicketSummary {
     canAssign: boolean;
     canLinkDevices: boolean;
     reopenAllowed: boolean;
+    /** The requester may rate the request while it is resolved. */
+    canRate: boolean;
   };
 }
 
@@ -292,6 +297,7 @@ export async function getTicket(p: Principal, id: string): Promise<TicketDetail>
     const approval = isRequest ? await approvalFor(tx, p, id, customerId) : null;
     const tasks = isRequest ? await listTasks(tx, id) : [];
     const related = await relatedTickets(tx, id);
+    const survey = await surveyFor(tx, id);
     const devices = canSeeOrgFor(p, customerId)
       ? await tx.query(
           `select d.id, d.name, d.operating_system, d.compliance_state
@@ -339,6 +345,7 @@ export async function getTicket(p: Principal, id: string): Promise<TicketDetail>
       approval,
       tasks,
       related,
+      survey,
       slaDetail: staff ? slaSummary(row, (row.sla_policy_name as string) ?? null) : null,
       viewer: {
         role: roleFor(p, customerId)!,
@@ -348,6 +355,7 @@ export async function getTicket(p: Principal, id: string): Promise<TicketDetail>
         canChangeStatus: statuses,
         canAssign: staff,
         canLinkDevices: canSeeOrgFor(p, customerId),
+        canRate: row.requester_user_id === p.userId && row.status === "resolved",
         reopenAllowed: staff ? row.status === "resolved" || row.status === "closed" : reopenAllowed(row.status),
       },
     };

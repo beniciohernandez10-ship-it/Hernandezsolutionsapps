@@ -21,6 +21,7 @@ export default async function PortalLayout({ children }: { children: React.React
     ...(caps.canCreate ? [{ href: "/portal/tickets/new", label: "New request" }] : []),
     ...(caps.canCreate ? [{ href: "/portal/kb", label: "Knowledge" }] : []),
     ...(caps.orgView ? [{ href: "/portal/devices", label: "Devices" }] : []),
+    ...(caps.orgView ? [{ href: "/portal/reports", label: "Reports" }] : []),
     ...(caps.manager ? [{ href: "/portal/inbox", label: "Email inbox" }] : []),
     ...(caps.operator ? [{ href: "/portal/admin", label: "Administration" }] : []),
   ];

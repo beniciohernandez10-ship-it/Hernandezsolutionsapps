@@ -12,6 +12,7 @@ import { attachmentsEnabled } from "@/lib/attachments/storage";
 import { AttachmentPanel } from "./attachments";
 import { ApprovalCard, TaskList } from "./request";
 import { RelatedCard } from "./related";
+import { SurveyCard } from "./survey";
 import { listCanned } from "@/lib/productivity/service";
 import { Time } from "@/components/time";
 import { PageTransition } from "@/components/page-transition";
@@ -194,6 +195,7 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
         </div>
 
         <aside className="stack" aria-label="Ticket details">
+          <SurveyCard ticketId={t.id} survey={t.survey} canRate={v.canRate} staff={v.isStaff} />
           {t.approval && <ApprovalCard ticketId={t.id} approval={t.approval} />}
           <section className="card tight">
             <h2 className="eyebrow">Details</h2>

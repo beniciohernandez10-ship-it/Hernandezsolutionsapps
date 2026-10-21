@@ -60,5 +60,8 @@
 | Productivity | Saved replies with fill-ins (shared or per client) | Implemented | Reply box → Insert a saved reply; /portal/replies |
 | | Merge duplicates, parent/child requests | Implemented | Same-customer only, enforced by composite keys |
 | | Automatic assignment rules | Implemented | Administration → Assignment rules; applied by a DB function on create |
+| Reports | Monthly service report per client: volume, response/resolution medians, categories, priorities, top requesters | Implemented | /portal/reports; print/PDF; client admins see their own without SLA or comments |
+| | SLA attainment, survey comments, CSV export | Implemented | Technicians only; CSV formulas neutralised |
+| Surveys | Requester rates a resolved request (👍/👎 + comment), changeable until closed | Implemented | RLS-enforced |
 | Email intake | Verified Resend webhook, reply-by-email via one-time reply addresses | Implemented | Off until inbound domain + webhook secret are set |
 | | Review inbox for unmatched email, convert to ticket | Implemented | Service managers only |
