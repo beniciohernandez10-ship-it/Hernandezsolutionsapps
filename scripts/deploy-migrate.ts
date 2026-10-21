@@ -1,6 +1,6 @@
 import { openDatabase } from "../src/lib/db";
 import { migrate } from "../src/lib/db/migrate";
-import { bootstrapFromEnv, bootstrapOperator } from "../src/lib/admin/bootstrap";
+import { bootstrapFromEnv, bootstrapHomeCustomer, bootstrapOperator } from "../src/lib/admin/bootstrap";
 
 // Runs before `next build` on Vercel (vercel.json buildCommand). Only the
 // production build migrates, so preview builds never change the production
@@ -15,5 +15,7 @@ if (process.env.VERCEL_ENV !== "production") {
   // First-operator bootstrap (docs/roles-and-onboarding.md). A no-op once an operator exists.
   const boot = bootstrapFromEnv(process.env);
   if (boot) console.log(`Operator bootstrap: ${await bootstrapOperator(database, boot)}.`);
+  const home = process.env.BOOTSTRAP_HOME_CUSTOMER_NAME;
+  if (home) console.log(`Home customer bootstrap: ${await bootstrapHomeCustomer(database, home)}.`);
   await database.close();
 }

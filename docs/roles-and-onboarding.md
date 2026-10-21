@@ -15,6 +15,7 @@ There is deliberately no self-service way to become an operator.
 | `BOOTSTRAP_OPERATOR_OBJECT_ID` | Entra admin center → Users → the person → Object ID |
 | `BOOTSTRAP_OPERATOR_EMAIL` | Their user principal name |
 | `BOOTSTRAP_OPERATOR_NAME` | Display name |
+| `BOOTSTRAP_HOME_CUSTOMER_NAME` | Optional: creates an internal customer (e.g. `Hernandez Solutions`) with the operator as its service manager |
 
 **Or by hand**, once against the environment's database (from a trusted machine, with that environment's `DATABASE_URL`):
 

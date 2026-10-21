@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { PGlite } from "@electric-sql/pglite";
 import type { Database, Queryable } from "@/lib/db";
 import { migrate } from "@/lib/db/migrate";
-import { bootstrapFromEnv, bootstrapOperator } from "@/lib/admin/bootstrap";
+import { bootstrapFromEnv, bootstrapHomeCustomer, bootstrapOperator } from "@/lib/admin/bootstrap";
 
 let db: Database;
 beforeAll(async () => {
@@ -47,5 +47,15 @@ describe("operator bootstrap", () => {
     // A second run (or a different person) cannot add another operator.
     expect(await bootstrapOperator(db, bootstrapFromEnv(env({ BOOTSTRAP_OPERATOR_EMAIL: "attacker@example.com" }))!)).toBe("skipped");
     expect((await db.query("select count(*)::int as n from users")).rows[0].n).toBe(1);
+  });
+
+  it("creates the home customer with the operator as service manager, once", async () => {
+    expect(await bootstrapHomeCustomer(db, "Hernandez Solutions")).toBe("created");
+    const m = await db.query<{ role: string; name: string }>(
+      "select m.role, c.name from memberships m join customers c on c.id = m.customer_id join users u on u.id = m.user_id where u.is_platform_operator",
+    );
+    expect(m.rows).toEqual([{ role: "service_manager", name: "Hernandez Solutions" }]);
+    expect(await bootstrapHomeCustomer(db, "Hernandez Solutions")).toBe("exists");
+    expect((await db.query("select count(*)::int as n from memberships")).rows[0].n).toBe(1);
   });
 });

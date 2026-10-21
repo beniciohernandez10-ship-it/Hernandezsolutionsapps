@@ -49,3 +49,36 @@ export async function bootstrapOperator(database: Database, input: BootstrapInpu
     return "created";
   });
 }
+
+/**
+ * Optional second bootstrap step: an internal customer for Hernandez
+ * Solutions itself, with the (single) platform operator from the home
+ * directory as its service manager, so the operator can use the service desk.
+ * Idempotent: an existing customer or membership is left as it is.
+ */
+export async function bootstrapHomeCustomer(database: Database, name: string): Promise<"created" | "exists" | "skipped"> {
+  const clean = z.string().trim().min(1).max(200).parse(name);
+  const slug = clean.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 63) || "home";
+  return database.transaction(async (tx) => {
+    const ops = await tx.query<{ id: string }>(
+      `select distinct u.id from users u join user_identities i on i.user_id = u.id
+         join entra_directories d on d.tenant_id = i.tenant_id and d.kind = 'msp'
+        where u.is_platform_operator and u.status = 'active' and not u.is_demo`,
+    );
+    if (ops.rows.length !== 1) return "skipped";
+    const operator = ops.rows[0].id;
+    const c = await tx.query<{ id: string }>("insert into customers (name, slug) values ($1, $2) on conflict (slug) do nothing returning id", [clean, slug]);
+    const customerId = c.rows[0]?.id ?? (await tx.query<{ id: string }>("select id from customers where slug = $1", [slug])).rows[0].id;
+    const m = await tx.query(
+      `insert into memberships (user_id, customer_id, role, granted_by) values ($1, $2, 'service_manager', $1)
+       on conflict (user_id, customer_id) where revoked_at is null do nothing`,
+      [operator, customerId],
+    );
+    if (!c.rows[0] && !m.rowCount) return "exists";
+    await tx.query(
+      "insert into audit_events (actor_user_id, customer_id, action, target_type, target_id, details) values (null, $1, 'platform.bootstrap_home_customer', 'customer', $2, $3)",
+      [customerId, customerId, JSON.stringify({ serviceManager: operator })],
+    );
+    return "created";
+  });
+}
