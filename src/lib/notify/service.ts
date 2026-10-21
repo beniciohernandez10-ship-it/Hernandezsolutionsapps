@@ -15,7 +15,15 @@ import type { SweepEvent } from "../sla/service";
  * enqueues one email per recipient whose preferences allow it.
  */
 
-export type TicketEvent = "created" | "public_reply" | "internal_note" | "status_changed" | "assigned" | "attachment_added";
+export type TicketEvent =
+  | "created"
+  | "public_reply"
+  | "internal_note"
+  | "status_changed"
+  | "assigned"
+  | "attachment_added"
+  | "approval_requested"
+  | "approval_decided";
 
 /** Called in the user's transaction (itc_app). The database function re-checks visibility and role. */
 export async function emitTicketEvent(tx: Queryable, ticketId: string, event: TicketEvent, detail: string | null = null, ref: string | null = null) {
@@ -37,6 +45,8 @@ interface TicketContext {
   assigneeId: string | null;
   /** Active staff (technician / service manager) for the customer. */
   staff: { userId: string; role: string }[];
+  /** Active client administrators of the customer. */
+  clientAdmins: string[];
   requesterActive: boolean;
 }
 
@@ -58,6 +68,7 @@ async function ticketContext(tx: Queryable, ticketId: string): Promise<TicketCon
     requesterId: t.rows[0].requester_user_id,
     assigneeId: t.rows[0].assignee_user_id,
     staff,
+    clientAdmins: members.rows.filter((m) => m.role === "client_admin").map((m) => m.user_id),
     requesterActive: members.rows.some((m) => m.user_id === t.rows[0].requester_user_id),
   };
 }
@@ -102,6 +113,15 @@ export function recipientsFor(
       else if (actorIsStaff) add(requester, "attachment_added", "email_ticket_updates");
       else add(staffAudience(c), "attachment_added", "email_ticket_updates");
       break;
+    case "approval_requested": {
+      const managers = c.staff.filter((s) => s.role === "service_manager").map((s) => s.userId);
+      add(c.clientAdmins.length ? c.clientAdmins : managers, "approval_requested", "email_ticket_updates");
+      break;
+    }
+    case "approval_decided":
+      add(requester, "approval_decided", "email_ticket_updates");
+      if (detail === "approved") add(staffAudience(c), "approval_decided", "email_new_tickets");
+      break;
     case "sla_warning":
     case "sla_breached": {
       const managers = c.staff.filter((s) => s.role === "service_manager").map((s) => s.userId);
@@ -139,7 +159,7 @@ async function deliver(tx: Queryable, c: TicketContext, recipients: Recipient[],
 
 const payloadSchema = z.object({
   ticketId: z.uuid(),
-  event: z.enum(["created", "public_reply", "internal_note", "status_changed", "assigned", "attachment_added"]),
+  event: z.enum(["created", "public_reply", "internal_note", "status_changed", "assigned", "attachment_added", "approval_requested", "approval_decided"]),
   actorUserId: z.uuid().nullable(),
   detail: z.string().max(40).nullable().optional(),
   ref: z.uuid().nullable().optional(),

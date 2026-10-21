@@ -1283,3 +1283,62 @@ label.btn[aria-disabled="true"] {
 .grid > .field + .field {
   margin-top: 0;
 }
+
+/* ------------------------------------------------------------------ service catalog */
+.catalog-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+.catalog-tile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  height: 100%;
+}
+.task-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+.task-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.task-list .subtle {
+  font-size: var(--text-xs);
+  padding-left: 26px;
+}
+.task-list .done {
+  text-decoration: line-through;
+  color: var(--color-text-muted);
+}
+.request-answers {
+  margin: 0;
+}
+.kv-row {
+  display: contents;
+}
+.field-editor {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: 1fr;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+@media (min-width: 720px) {
+  .field-editor {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto auto;
+    align-items: center;
+  }
+  .field-editor-wide {
+    grid-column: 1 / -1;
+  }
+}

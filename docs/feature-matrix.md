@@ -52,5 +52,7 @@
 | | Pause while waiting/resolved, warnings, breaches, staff-only display, attainment | Implemented | Hidden from customers in app and RLS; sweep runs on portal use + daily cron |
 | Attachments | Upload, download, content-based type checks, internal files | Implemented | Private Vercel Blob store required in production; 4 MB per upload |
 | | Malware scanning | Not built | No scanner on Vercel Blob; files labelled "not virus-scanned" |
+| Service catalog | Request types with custom forms, per-customer or global | Implemented | Administration → Service catalog; six starter templates |
+| | Approval by the client admin (service manager if none), fulfilment checklist | Implemented | Checklist built from the template by a DB function; staff-only edits |
 | Email intake | Verified Resend webhook, reply-by-email via one-time reply addresses | Implemented | Off until inbound domain + webhook secret are set |
 | | Review inbox for unmatched email, convert to ticket | Implemented | Service managers only |

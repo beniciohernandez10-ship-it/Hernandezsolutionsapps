@@ -13,7 +13,9 @@ export type NotificationKind =
   | "assigned"
   | "sla_warning"
   | "sla_breached"
-  | "attachment_added";
+  | "attachment_added"
+  | "approval_requested"
+  | "approval_decided";
 
 /** Marker above which an email reply is read; everything below is ignored. */
 export const REPLY_MARKER = "##- Reply above this line to add it to your request -##";
@@ -41,6 +43,10 @@ export function describeNotification(kind: NotificationKind, actor: string | nul
       return `The ${TARGET[detail ?? ""] ?? "SLA"} target was missed.`;
     case "attachment_added":
       return `${who} added a file.`;
+    case "approval_requested":
+      return `${who} submitted a request that needs your approval.`;
+    case "approval_decided":
+      return detail === "rejected" ? `${who} did not approve this request.` : `${who} approved this request.`;
   }
 }
 
@@ -53,6 +59,8 @@ const SUBJECT_SUFFIX: Record<NotificationKind, string> = {
   sla_warning: "SLA due soon",
   sla_breached: "SLA missed",
   attachment_added: "New file",
+  approval_requested: "Approval needed",
+  approval_decided: "Approval decision",
 };
 
 const escapeHtml = (s: string) =>

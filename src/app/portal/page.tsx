@@ -2,6 +2,8 @@ import Link from "next/link";
 import { requirePrincipal } from "@/lib/auth/current";
 import { capabilities } from "@/lib/authz";
 import { dashboard, listTickets } from "@/lib/tickets/service";
+import { pendingApprovals } from "@/lib/catalog/service";
+import { Time } from "@/components/time";
 import { PageTransition } from "@/components/page-transition";
 import { TicketList } from "./tickets/ticket-list";
 import { IconPlus } from "@/components/icons";
@@ -30,8 +32,9 @@ export default async function Overview() {
       </PageTransition>
     );
   }
-  const [stats, recent] = await Promise.all([
+  const [stats, approvals, recent] = await Promise.all([
     dashboard(principal),
+    pendingApprovals(principal),
     listTickets(principal, caps.staff ? { status: "active", pageSize: 6 } : { pageSize: 6 }),
   ]);
   const s = stats!;
@@ -49,6 +52,24 @@ export default async function Overview() {
           </Link>
         )}
       </div>
+      {approvals.length > 0 && (
+        <section aria-labelledby="approvals-h" className="card stack">
+          <h2 id="approvals-h">Waiting for your approval ({approvals.length})</h2>
+          <ul className="stack" role="list">
+            {approvals.map((a) => (
+              <li key={a.ticketId} className="spread">
+                <Link href={`/portal/tickets/${a.ticketId}`} transitionTypes={["nav-forward"]}>
+                  <span className="ticket-number">#{a.number}</span> {a.title}
+                </Link>
+                <span className="subtle">
+                  {a.requesterName}
+                  {principal.memberships.length > 1 ? ` · ${a.customerName}` : ""} · <Time iso={a.requestedAt} />
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       <section aria-labelledby="stats-h" className="stack">
         <h2 id="stats-h" className="sr-only">Ticket counts</h2>
         <div className="grid grid-stats">

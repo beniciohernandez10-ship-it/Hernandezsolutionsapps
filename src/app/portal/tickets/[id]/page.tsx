@@ -9,6 +9,7 @@ import { ComplianceBadge, EmailBadge, InternalBadge, PriorityBadge, SlaBadge, St
 import { markRead } from "@/lib/notify/service";
 import { attachmentsEnabled } from "@/lib/attachments/storage";
 import { AttachmentPanel } from "./attachments";
+import { ApprovalCard, TaskList } from "./request";
 import { Time } from "@/components/time";
 import { PageTransition } from "@/components/page-transition";
 import { IconBack, IconCheck } from "@/components/icons";
@@ -24,6 +25,10 @@ const EVENT_TEXT: Record<string, (from: string | null, to: string | null) => str
   priority_changed: (f, t) => `changed priority from ${f} to ${t}`,
   device_linked: () => "linked a device",
   device_unlinked: () => "unlinked a device",
+  approval_requested: () => "asked for approval",
+  approved: () => "approved this request",
+  rejected: () => "declined this request",
+  task_completed: () => "completed a checklist task",
   attachment_added: (_f, t) => (t === "internal" ? "added a file for technicians" : "added a file"),
   sla_warning: (_f, t) => `was warned: ${t === "first_response" ? "first response" : "resolution"} target is coming up`,
   sla_breached: (_f, t) => `recorded a missed ${t === "first_response" ? "first response" : "resolution"} target`,
@@ -89,6 +94,7 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
           <div className="row">
             <StatusBadge status={t.status} />
             <PriorityBadge priority={t.priority as Priority} />
+            {t.kind === "request" && <span className="badge">Request</span>}
           </div>
         </div>
       </div>
@@ -100,7 +106,20 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
               <strong>{t.requesterName}</strong>
               <span className="subtle"><Time iso={t.createdAt} mode="absolute" /></span>
             </header>
-            <div className="body">{t.description}</div>
+            {t.requestData ? (
+              <dl className="kv request-answers">
+                {t.requestData
+                  .filter((a) => a.value)
+                  .map((a, i) => (
+                    <div key={i} className="kv-row">
+                      <dt>{a.label}</dt>
+                      <dd className="prewrap">{a.value}</dd>
+                    </div>
+                  ))}
+              </dl>
+            ) : (
+              <div className="body">{t.description}</div>
+            )}
           </article>
 
           <section aria-labelledby="conv-h">
@@ -140,6 +159,7 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
         </div>
 
         <aside className="stack" aria-label="Ticket details">
+          {t.approval && <ApprovalCard ticketId={t.id} approval={t.approval} />}
           <section className="card tight">
             <h2 className="eyebrow">Details</h2>
             <dl className="kv">
@@ -189,6 +209,7 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
               </dl>
             </section>
           )}
+          {t.kind === "request" && <TaskList ticketId={t.id} tasks={t.tasks} canEdit={v.isStaff && t.approvalStatus !== "pending" && t.approvalStatus !== "rejected"} />}
           <AttachmentPanel
             ticketId={t.id}
             attachments={t.attachments}

@@ -32,7 +32,10 @@ export default async function AdminPage() {
           <p className="eyebrow">Platform operator</p>
           <h1>Administration</h1>
         </div>
-        <Link className="btn" href="/portal/admin/sla" transitionTypes={["nav-forward"]}>Service levels</Link>
+        <div className="row">
+          <Link className="btn" href="/portal/admin/catalog" transitionTypes={["nav-forward"]}>Service catalog</Link>
+          <Link className="btn" href="/portal/admin/sla" transitionTypes={["nav-forward"]}>Service levels</Link>
+        </div>
       </div>
       <p className="subtle">Changes here are audited. Sensitive changes ask you to sign in again if your last sign-in was a while ago.</p>
       <AdminConsole customers={customers} memberships={memberships} connections={connections} />

@@ -33,6 +33,8 @@ export function TicketList({ items, showCustomer, emptyText }: { items: TicketSu
               </div>
             </div>
             <div className="row">
+              {t.approvalStatus === "pending" && <span className="badge status-waiting">Awaiting approval</span>}
+              {t.kind === "request" && t.approvalStatus !== "pending" && <span className="badge">Request</span>}
               {t.sla && <SlaBadge state={t.sla} />}
               <PriorityBadge priority={t.priority as Priority} />
               <StatusBadge status={t.status} />

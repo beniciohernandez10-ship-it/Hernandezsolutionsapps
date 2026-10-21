@@ -16,6 +16,7 @@ import { config } from "../config";
 import { emitTicketEvent } from "../notify/service";
 import { applySlaOnCreate, applySlaTransition, slaBadge, slaSummary, type TicketSla } from "../sla/service";
 import { listAttachments, type AttachmentInfo } from "../attachments/service";
+import { approvalFor, listTasks, type ApprovalInfo, type TicketTask } from "../catalog/read";
 import {
   addMessageSchema,
   createTicketSchema,
@@ -42,6 +43,8 @@ export interface TicketSummary {
   version: number;
   /** Staff only: worst open SLA state. Always null for customers. */
   sla: "breached" | "at_risk" | null;
+  kind: "incident" | "request";
+  approvalStatus: "not_required" | "pending" | "approved" | "rejected";
 }
 
 export interface TicketMessage {
@@ -66,6 +69,10 @@ export interface TicketDetail extends TicketSummary {
   events: { kind: string; fromValue: string | null; toValue: string | null; actorName: string | null; createdAt: string }[];
   devices: { id: string; name: string; operatingSystem: string | null; complianceState: string | null }[];
   attachments: AttachmentInfo[];
+  /** Catalog requests: the submitted answers, approval state and fulfilment checklist. */
+  requestData: { label: string; value: string }[] | null;
+  approval: ApprovalInfo | null;
+  tasks: TicketTask[];
   /** Staff only. */
   slaDetail: TicketSla | null;
   viewer: {
@@ -111,7 +118,7 @@ const SUMMARY_COLUMNS = `
   ru.display_name as requester_name, au.display_name as assignee_name, q.name as queue_name,
   t.created_at, t.updated_at, t.version, t.sla_policy_id, t.first_response_at, t.resolved_at,
   t.first_response_due_at, t.first_response_warn_at, t.resolution_due_at, t.resolution_warn_at,
-  t.sla_paused_since, t.sla_paused_minutes, t.resolution_breached_at`;
+  t.sla_paused_since, t.sla_paused_minutes, t.resolution_breached_at, t.kind, t.approval_status`;
 
 const SUMMARY_JOINS = `
   from tickets t
@@ -137,6 +144,8 @@ function toSummary(r: Record<string, unknown>, p?: Principal): TicketSummary {
     updatedAt: iso(r.updated_at)!,
     version: Number(r.version),
     sla: p && isStaffFor(p, r.customer_id as string) ? slaBadge(r) : null,
+    kind: (r.kind as "incident" | "request") ?? "incident",
+    approvalStatus: (r.approval_status as TicketSummary["approvalStatus"]) ?? "not_required",
   };
 }
 
@@ -197,7 +206,7 @@ async function loadTicketRow(tx: Queryable, p: Principal, id: string) {
   const params: unknown[] = [id];
   const r = await tx.query(
     `select ${SUMMARY_COLUMNS}, t.description, t.requester_user_id, t.assignee_user_id, t.queue_id,
-            t.reopen_count, sp.name as sla_policy_name
+            t.reopen_count, t.request_data, sp.name as sla_policy_name
        ${SUMMARY_JOINS}
        left join sla_policies sp on sp.id = t.sla_policy_id
       where t.id = $1 and ${scopeClause(p, params)}`,
@@ -218,7 +227,11 @@ function reopenAllowed(resolvedAt: unknown) {
 function allowedStatuses(p: Principal, row: Record<string, unknown>): Status[] {
   const status = row.status as Status;
   const customerId = row.customer_id as string;
-  if (isStaffFor(p, customerId)) return (["open", "in_progress", "waiting", "resolved"] as Status[]).filter((s) => s !== status);
+  if (isStaffFor(p, customerId)) {
+    const options: Status[] = ["open", "in_progress", "waiting", "resolved"];
+    // Work starts once a request is approved; until then it can only be closed.
+    return options.filter((s) => s !== status && !(row.approval_status === "pending" && (s === "in_progress" || s === "waiting")));
+  }
   const role = roleFor(p, customerId);
   const ownsOrOrg = role === "client_admin" || row.requester_user_id === p.userId;
   if (!ownsOrOrg) return [];
@@ -246,6 +259,9 @@ export async function getTicket(p: Principal, id: string): Promise<TicketDetail>
       [id],
     );
     const attachments = await listAttachments(tx, p, id, customerId);
+    const isRequest = row.kind === "request";
+    const approval = isRequest ? await approvalFor(tx, p, id, customerId) : null;
+    const tasks = isRequest ? await listTasks(tx, id) : [];
     const devices = canSeeOrgFor(p, customerId)
       ? await tx.query(
           `select d.id, d.name, d.operating_system, d.compliance_state
@@ -287,6 +303,9 @@ export async function getTicket(p: Principal, id: string): Promise<TicketDetail>
         complianceState: (d.compliance_state as string) ?? null,
       })),
       attachments,
+      requestData: (row.request_data as { label: string; value: string }[]) ?? null,
+      approval,
+      tasks,
       slaDetail: staff ? slaSummary(row, (row.sla_policy_name as string) ?? null) : null,
       viewer: {
         role: roleFor(p, customerId)!,
@@ -311,7 +330,18 @@ function requestHash(body: unknown) {
  * principal's memberships; an Idempotency-Key makes retries return the
  * original result instead of creating duplicates.
  */
-export async function createTicket(p: Principal, raw: unknown, idempotencyKey: string, opts: { source?: "portal" | "email" } = {}) {
+export interface CreateTicketOptions {
+  source?: "portal" | "email";
+  kind?: "incident" | "request";
+  catalogItemId?: string;
+  requestData?: { label: string; value: string }[];
+  /** Runs in the same transaction after the ticket row exists (catalog approvals, tasks). */
+  afterInsert?: (tx: Queryable, ticket: { id: string; number: number }, customerId: string) => Promise<void>;
+  /** Skip the standard "created" notification when afterInsert sends its own. */
+  notify?: boolean;
+}
+
+export async function createTicket(p: Principal, raw: unknown, idempotencyKey: string, opts: CreateTicketOptions = {}) {
   if (!/^[A-Za-z0-9_-]{8,128}$/.test(idempotencyKey)) {
     throw new AppError(400, "bad_request", "A valid Idempotency-Key header is required.");
   }
@@ -342,9 +372,20 @@ export async function createTicket(p: Principal, raw: unknown, idempotencyKey: s
     }
 
     const t = await tx.query<{ id: string; number: string }>(
-      `insert into tickets (customer_id, requester_user_id, title, description, priority, category, source)
-       values ($1, $2, $3, $4, $5, $6, $7) returning id, number`,
-      [customerId, p.userId, input.title, input.description, input.priority, input.category, opts.source ?? "portal"],
+      `insert into tickets (customer_id, requester_user_id, title, description, priority, category, source, kind, catalog_item_id, request_data)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) returning id, number`,
+      [
+        customerId,
+        p.userId,
+        input.title,
+        input.description,
+        input.priority,
+        input.category,
+        opts.source ?? "portal",
+        opts.kind ?? "incident",
+        opts.catalogItemId ?? null,
+        opts.requestData ? JSON.stringify(opts.requestData) : null,
+      ],
     );
     const ticket = { id: t.rows[0].id, number: Number(t.rows[0].number) };
     await tx.query(
@@ -356,7 +397,8 @@ export async function createTicket(p: Principal, raw: unknown, idempotencyKey: s
       await linkDeviceTx(tx, p, ticket.id, customerId, input.deviceId);
     }
     await applySlaOnCreate(tx, ticket.id);
-    await emitTicketEvent(tx, ticket.id, "created");
+    if (opts.afterInsert) await opts.afterInsert(tx, ticket, customerId);
+    if (opts.notify !== false) await emitTicketEvent(tx, ticket.id, "created");
     await audit(tx, p, "ticket.create", customerId, "ticket", ticket.id, { number: ticket.number, priority: input.priority, source: opts.source ?? "portal" });
     await tx.query(
       "update idempotency_keys set status_code = 201, response = $3 where user_id = $1 and scope = 'ticket.create' and key = $2",
