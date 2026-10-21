@@ -13,6 +13,8 @@ import { AttachmentPanel } from "./attachments";
 import { ApprovalCard, TaskList } from "./request";
 import { RelatedCard } from "./related";
 import { SurveyCard } from "./survey";
+import { IncidentCard } from "./incident";
+import { incidentsForCustomer } from "@/lib/incidents/service";
 import { listCanned } from "@/lib/productivity/service";
 import { Time } from "@/components/time";
 import { PageTransition } from "@/components/page-transition";
@@ -31,6 +33,8 @@ const EVENT_TEXT: Record<string, (from: string | null, to: string | null) => str
   parent_set: (_f, t) => `linked this request to ${t}`,
   parent_cleared: () => "unlinked this request from its parent",
   auto_assigned: (_f, t) => `assigned this request by rule "${t}"`,
+  incident_linked: () => "linked this request to a wider incident",
+  incident_unlinked: () => "unlinked this request from a wider incident",
   assigned: (_f, t) => (t ? "changed the assignee" : "removed the assignee"),
   priority_changed: (f, t) => `changed priority from ${f} to ${t}`,
   device_linked: () => "linked a device",
@@ -61,11 +65,12 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
     throw e;
   }
   const v = t.viewer;
-  const [staff, queues, devices, canned] = await Promise.all([
+  const [staff, queues, devices, canned, incidentOptions] = await Promise.all([
     v.canAssign ? listAssignableStaff(principal, t.customerId) : Promise.resolve([]),
     v.canAssign ? listQueues(principal) : Promise.resolve([]),
     v.canLinkDevices ? listDevices(principal, t.customerId).then((d) => d.devices) : Promise.resolve([]),
     v.isStaff ? listCanned(principal, t.customerId) : Promise.resolve([]),
+    v.isStaff && !t.incident ? incidentsForCustomer(principal, t.customerId) : Promise.resolve([]),
   ]);
   const linked = new Set(t.devices.map((d) => d.id));
   // Viewing a ticket clears its notifications.
@@ -195,6 +200,7 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
         </div>
 
         <aside className="stack" aria-label="Ticket details">
+          <IncidentCard ticketId={t.id} incident={t.incident} options={incidentOptions} canEdit={v.isStaff} />
           <SurveyCard ticketId={t.id} survey={t.survey} canRate={v.canRate} staff={v.isStaff} />
           {t.approval && <ApprovalCard ticketId={t.id} approval={t.approval} />}
           <section className="card tight">

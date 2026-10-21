@@ -200,12 +200,13 @@ export async function sendNotificationEmail(payload: unknown) {
   const { notificationId } = z.object({ notificationId: z.uuid() }).parse(payload);
   const ctx = await asSystem(async (tx) => {
     const r = await tx.query<Record<string, unknown>>(
-      `select n.id, n.kind, n.detail, n.user_id, n.emailed_at, n.ticket_id, n.change_id, n.customer_id,
-              coalesce(t.number, ch.number) as number, coalesce(t.title, ch.title) as title, c.name as customer_name,
+      `select n.id, n.kind, n.detail, n.user_id, n.emailed_at, n.ticket_id, n.change_id, n.incident_id, n.customer_id,
+              coalesce(t.number, ch.number, si.number) as number, coalesce(t.title, ch.title, si.title) as title, c.name as customer_name,
               u.email, u.status as user_status, a.display_name as actor_name,
               coalesce(p.email_enabled, true) as email_enabled,
               exists (select 1 from memberships m where m.user_id = n.user_id and m.customer_id = n.customer_id and m.revoked_at is null) as still_member
          from notifications n left join tickets t on t.id = n.ticket_id left join change_requests ch on ch.id = n.change_id
+         left join service_incidents si on si.id = n.incident_id
          join customers c on c.id = n.customer_id
          join users u on u.id = n.user_id left join users a on a.id = n.actor_user_id
          left join notification_preferences p on p.user_id = n.user_id where n.id = $1`,
@@ -238,8 +239,12 @@ export async function sendNotificationEmail(payload: unknown) {
     ticketNumber: Number(row.number),
     ticketTitle: row.title as string,
     customerName: row.customer_name as string,
-    ticketUrl: row.change_id ? `${origin}/portal/changes/${row.change_id}` : `${origin}/portal/tickets/${row.ticket_id}`,
-    refLabel: row.change_id ? `Change CHG-${row.number}` : undefined,
+    ticketUrl: row.change_id
+      ? `${origin}/portal/changes/${row.change_id}`
+      : row.incident_id
+        ? `${origin}/portal/incidents/${row.incident_id}`
+        : `${origin}/portal/tickets/${row.ticket_id}`,
+    refLabel: row.change_id ? `Change CHG-${row.number}` : row.incident_id ? `Incident INC-${row.number}` : undefined,
     settingsUrl: `${origin}/portal/settings`,
     replyEnabled,
   });
@@ -270,11 +275,12 @@ export interface NotificationItem {
 export async function listNotifications(p: Principal, limit = 30): Promise<NotificationItem[]> {
   return withUser(p.userId, async (tx) => {
     const r = await tx.query<Record<string, unknown>>(
-      `select n.id, n.kind, n.detail, n.created_at, n.read_at, n.ticket_id, n.change_id,
-              coalesce(t.number, c.number) as number, coalesce(t.title, c.title) as title, a.display_name as actor_name
+      `select n.id, n.kind, n.detail, n.created_at, n.read_at, n.ticket_id, n.change_id, n.incident_id,
+              coalesce(t.number, c.number, si.number) as number, coalesce(t.title, c.title, si.title) as title, a.display_name as actor_name
          from notifications n left join tickets t on t.id = n.ticket_id left join change_requests c on c.id = n.change_id
+         left join service_incidents si on si.id = n.incident_id
          left join users a on a.id = n.actor_user_id
-        where n.user_id = $1 and (t.id is not null or c.id is not null) order by n.created_at desc limit $2`,
+        where n.user_id = $1 and (t.id is not null or c.id is not null or si.id is not null) order by n.created_at desc limit $2`,
       [p.userId, Math.min(Math.max(limit, 1), 100)],
     );
     return r.rows.map((x) => ({
@@ -286,8 +292,8 @@ export async function listNotifications(p: Principal, limit = 30): Promise<Notif
       changeId: (x.change_id as string) ?? null,
       ticketNumber: Number(x.number),
       ticketTitle: x.title as string,
-      ref: x.change_id ? `CHG-${x.number}` : `#${x.number}`,
-      href: x.change_id ? `/portal/changes/${x.change_id}` : `/portal/tickets/${x.ticket_id}`,
+      ref: x.change_id ? `CHG-${x.number}` : x.incident_id ? `INC-${x.number}` : `#${x.number}`,
+      href: x.change_id ? `/portal/changes/${x.change_id}` : x.incident_id ? `/portal/incidents/${x.incident_id}` : `/portal/tickets/${x.ticket_id}`,
       createdAt: new Date(x.created_at as string).toISOString(),
       read: Boolean(x.read_at),
     }));
@@ -302,7 +308,7 @@ export async function unreadCount(p: Principal): Promise<number> {
 }
 
 /** Marks notifications read: given ids, all of one ticket's, or everything. */
-export async function markRead(p: Principal, target: { ids?: string[]; ticketId?: string; changeId?: string; all?: boolean }) {
+export async function markRead(p: Principal, target: { ids?: string[]; ticketId?: string; changeId?: string; incidentId?: string; all?: boolean }) {
   return withUser(p.userId, async (tx) => {
     const where = ["user_id = $1", "read_at is null"];
     const params: unknown[] = [p.userId];
@@ -315,6 +321,9 @@ export async function markRead(p: Principal, target: { ids?: string[]; ticketId?
     } else if (target.changeId) {
       params.push(target.changeId);
       where.push(`change_id = $${params.length}`);
+    } else if (target.incidentId) {
+      params.push(target.incidentId);
+      where.push(`incident_id = $${params.length}`);
     } else if (!target.all) return 0;
     const r = await tx.query(`update notifications set read_at = now() where ${where.join(" and ")}`, params);
     return r.rowCount;

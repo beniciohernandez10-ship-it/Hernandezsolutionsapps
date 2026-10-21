@@ -19,7 +19,8 @@ export type NotificationKind =
   | "change_approval_requested"
   | "change_decided"
   | "change_scheduled"
-  | "change_finished";
+  | "change_finished"
+  | "incident_update";
 
 /** Marker above which an email reply is read; everything below is ignored. */
 export const REPLY_MARKER = "##- Reply above this line to add it to your request -##";
@@ -57,6 +58,8 @@ export function describeNotification(kind: NotificationKind, actor: string | nul
       return detail === "rejected" ? `${who} did not approve this change.` : `${who} approved this change.`;
     case "change_scheduled":
       return "Planned maintenance is scheduled. Open it to see the window and what to expect.";
+    case "incident_update":
+      return detail === "resolved" ? "A wider issue affecting your organization is resolved." : "There's an update on a wider issue affecting your organization.";
     case "change_finished":
       return detail === "failed" ? "Planned maintenance didn't go as planned and was backed out." : "Planned maintenance is complete.";
   }
@@ -77,6 +80,7 @@ const SUBJECT_SUFFIX: Record<NotificationKind, string> = {
   change_decided: "Change decision",
   change_scheduled: "Planned maintenance",
   change_finished: "Maintenance update",
+  incident_update: "Service status",
 };
 
 const escapeHtml = (s: string) =>

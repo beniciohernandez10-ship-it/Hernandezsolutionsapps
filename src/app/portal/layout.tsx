@@ -7,12 +7,14 @@ import { SignOutButton } from "@/components/signout";
 import { IconBell, IconExternal, IconMenu } from "@/components/icons";
 import { unreadCount } from "@/lib/notify/service";
 import { drainAfterResponse } from "@/lib/http/after-response";
+import { activeIncidentsFor } from "@/lib/incidents/service";
 import { demoAllowed } from "@/lib/auth/demo";
 
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
   const { principal, csrfToken } = await requirePrincipal();
   const caps = capabilities(principal);
   const unread = principal.memberships.length ? await unreadCount(principal).catch(() => 0) : 0;
+  const incidents = await activeIncidentsFor(principal).catch(() => []);
   // Keeps notifications and SLA checks moving between the daily cron runs.
   drainAfterResponse({ sweep: true });
   const items: NavItem[] = [
@@ -20,6 +22,7 @@ export default async function PortalLayout({ children }: { children: React.React
     { href: "/portal/tickets", label: caps.staff ? "Tickets" : "My requests" },
     ...(caps.canCreate ? [{ href: "/portal/tickets/new", label: "New request" }] : []),
     ...(caps.canCreate ? [{ href: "/portal/kb", label: "Knowledge" }] : []),
+    ...(caps.canCreate ? [{ href: "/portal/status", label: "Status" }] : []),
     ...(caps.orgView ? [{ href: "/portal/devices", label: "Devices" }] : []),
     ...(caps.orgView ? [{ href: "/portal/changes", label: "Changes" }] : []),
     ...(caps.orgView ? [{ href: "/portal/reports", label: "Reports" }] : []),
@@ -76,6 +79,21 @@ export default async function PortalLayout({ children }: { children: React.React
           </div>
         </div>
       </header>
+      {incidents.length > 0 && (
+        <div className="incident-banner" role="status">
+          <div className="container">
+            <strong>Known issue{incidents.length > 1 ? "s" : ""}:</strong>{" "}
+            {incidents.map((i, n) => (
+              <span key={i.id}>
+                {n > 0 && " · "}
+                <Link href={`/portal/incidents/${i.id}`}>{i.title}</Link>
+              </span>
+            ))}
+            {" — "}
+            <Link href="/portal/status">service status</Link>
+          </div>
+        </div>
+      )}
       <main id="main">
         <div className="container">{children}</div>
       </main>

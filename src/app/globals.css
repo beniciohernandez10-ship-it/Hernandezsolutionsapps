@@ -1643,3 +1643,39 @@ label.btn[aria-disabled="true"] {
   background: var(--color-accent-soft);
   color: var(--color-text);
 }
+
+/* ------------------------------------------------------------------ incidents and status */
+.incident-banner {
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-border-strong);
+  background: var(--color-surface-raised);
+  font-size: var(--text-sm);
+}
+.badge.severity-critical,
+.badge.severity-major {
+  color: var(--color-danger);
+  border-color: currentColor;
+}
+.badge.incident-resolved {
+  color: var(--color-success);
+}
+.badge.incident-investigating {
+  border-style: dashed;
+}
+.incident-latest {
+  margin-top: var(--space-1);
+  font-size: var(--text-sm);
+}
+.all-clear {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.ticket-row.static:hover {
+  transform: none;
+}
+.incident-updates {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
