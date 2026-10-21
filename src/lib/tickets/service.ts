@@ -80,6 +80,8 @@ export interface TicketDetail extends TicketSummary {
   tasks: TicketTask[];
   /** Parent, child and merged-into requests the viewer can see. */
   related: RelatedTickets;
+  /** Staff only: the problem this request is linked to. */
+  problem: { id: string; number: number; title: string; status: string } | null;
   /** The wider incident this request is part of, if any. */
   incident: { id: string; number: number; title: string; status: string } | null;
   /** The requester's rating, visible to them, their client admins and staff. */
@@ -219,7 +221,7 @@ async function loadTicketRow(tx: Queryable, p: Principal, id: string) {
   const params: unknown[] = [id];
   const r = await tx.query(
     `select ${SUMMARY_COLUMNS}, t.description, t.requester_user_id, t.assignee_user_id, t.queue_id,
-            t.reopen_count, t.request_data, t.resolution_note, t.closed_at, t.major_incident_id, sp.name as sla_policy_name
+            t.reopen_count, t.request_data, t.resolution_note, t.closed_at, t.major_incident_id, t.problem_id, sp.name as sla_policy_name
        ${SUMMARY_JOINS}
        left join sla_policies sp on sp.id = t.sla_policy_id
       where t.id = $1 and ${scopeClause(p, params)}`,
@@ -300,6 +302,10 @@ export async function getTicket(p: Principal, id: string): Promise<TicketDetail>
     const tasks = isRequest ? await listTasks(tx, id) : [];
     const related = await relatedTickets(tx, id);
     const survey = await surveyFor(tx, id);
+    // Problems are technician-only; row-level security returns nothing for customers.
+    const prob = staff && row.problem_id
+      ? (await tx.query<{ id: string; number: string; title: string; status: string }>("select id, number, title, status from problems where id = $1", [row.problem_id])).rows[0]
+      : undefined;
     const inc = row.major_incident_id
       ? (await tx.query<{ id: string; number: string; title: string; status: string }>("select id, number, title, status from service_incidents where id = $1", [row.major_incident_id])).rows[0]
       : undefined;
@@ -351,6 +357,7 @@ export async function getTicket(p: Principal, id: string): Promise<TicketDetail>
       tasks,
       related,
       survey,
+      problem: prob ? { id: prob.id, number: Number(prob.number), title: prob.title, status: prob.status } : null,
       incident: inc ? { id: inc.id, number: Number(inc.number), title: inc.title, status: inc.status } : null,
       slaDetail: staff ? slaSummary(row, (row.sla_policy_name as string) ?? null) : null,
       viewer: {

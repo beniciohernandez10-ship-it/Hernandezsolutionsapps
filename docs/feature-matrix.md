@@ -67,5 +67,7 @@
 | | Approval: standard pre-approved, normal by client admin, emergency by service manager; scheduled/finished notices | Implemented | Editing an approved change sends it back for approval |
 | Major incidents | Declare for some or all clients, linked requests, status updates posted to every linked request, resolve them together | Implemented | Service managers; client admins notified |
 | Status page | Active and recent incidents, planned maintenance, portal-wide banner | Implemented | /portal/status; maintenance via a DB function exposing no plans |
+| Problem management | Problems (investigating → known error → resolved), root cause, workaround, permanent fix, linked requests | Implemented | Technicians only (RLS) |
+| | Repeat-issue detection; workaround drafted as a knowledge article | Implemented | /portal/problems |
 | Email intake | Verified Resend webhook, reply-by-email via one-time reply addresses | Implemented | Off until inbound domain + webhook secret are set |
 | | Review inbox for unmatched email, convert to ticket | Implemented | Service managers only |
