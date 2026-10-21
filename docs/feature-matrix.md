@@ -71,5 +71,7 @@
 | | Repeat-issue detection; workaround drafted as a knowledge article | Implemented | /portal/problems |
 | Assets / CMDB | Hardware details (manufacturer, model, serial, purchase, warranty), change history, warranties-ending list | Implemented | Devices page |
 | | Microsoft 365 license inventory (purchased / assigned / unassigned per SKU) | Implemented (mocked) | Read-only Graph subscribedSkus; needs Organization.Read.All consent |
+| AI assistant | Draft replies, triage summary with suggested category/priority/next steps (technicians) | Implemented (mocked in tests) | Claude Opus 5.5; off until ANTHROPIC_API_KEY is set and an operator turns it on per customer; see docs/ai-assistant.md |
+| | Self-help answers on a new request, only from published help articles, with links | Implemented (mocked in tests) | Never sends private notes or technician-only articles |
 | Email intake | Verified Resend webhook, reply-by-email via one-time reply addresses | Implemented | Off until inbound domain + webhook secret are set |
 | | Review inbox for unmatched email, convert to ticket | Implemented | Service managers only |

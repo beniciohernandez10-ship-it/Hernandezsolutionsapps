@@ -1709,3 +1709,15 @@ label.btn[aria-disabled="true"] {
 .mono-text {
   font-family: var(--font-mono);
 }
+
+/* ------------------------------------------------------------------ AI assistant */
+.ai-output {
+  padding: var(--space-3) var(--space-4);
+  border-left: 3px solid var(--color-border-strong);
+  background: var(--color-surface-raised);
+  border-radius: var(--radius-sm);
+}
+.ai-steps {
+  margin: 0;
+  padding-left: 1.2rem;
+}

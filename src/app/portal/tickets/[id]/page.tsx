@@ -22,6 +22,8 @@ import { Time } from "@/components/time";
 import { PageTransition } from "@/components/page-transition";
 import { IconBack, IconCheck } from "@/components/icons";
 import { ReplyBox, StatusControls, StaffControls, DeviceLinker } from "./controls";
+import { AiTriageCard } from "./ai";
+import { aiCustomers } from "@/lib/ai/service";
 
 export const metadata = { title: "Ticket" };
 
@@ -69,13 +71,14 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
     throw e;
   }
   const v = t.viewer;
-  const [staff, queues, devices, canned, incidentOptions, problemOptions] = await Promise.all([
+  const [staff, queues, devices, canned, incidentOptions, problemOptions, aiOn] = await Promise.all([
     v.canAssign ? listAssignableStaff(principal, t.customerId) : Promise.resolve([]),
     v.canAssign ? listQueues(principal) : Promise.resolve([]),
     v.canLinkDevices ? listDevices(principal, t.customerId).then((d) => d.devices) : Promise.resolve([]),
     v.isStaff ? listCanned(principal, t.customerId) : Promise.resolve([]),
     v.isStaff && !t.incident ? incidentsForCustomer(principal, t.customerId) : Promise.resolve([]),
     v.isStaff && !t.problem ? problemsForCustomer(principal, t.customerId) : Promise.resolve([]),
+    v.isStaff ? aiCustomers([t.customerId]).then((s) => s.has(t.customerId)) : Promise.resolve(false),
   ]);
   const linked = new Set(t.devices.map((d) => d.id));
   // Viewing a ticket clears its notifications.
@@ -194,6 +197,7 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
               closed={t.status === "closed"}
               canned={canned}
               fill={{ requesterName: t.requesterName, ticketNumber: t.number, technicianName: principal.displayName }}
+              ai={aiOn}
             />
           ) : (
             <p className="alert alert-warning">
@@ -205,6 +209,7 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
         </div>
 
         <aside className="stack" aria-label="Ticket details">
+          {aiOn && <AiTriageCard ticketId={t.id} version={t.version} priority={t.priority} category={t.category} />}
           <IncidentCard ticketId={t.id} incident={t.incident} options={incidentOptions} canEdit={v.isStaff} />
           {v.isStaff && <ProblemCard ticketId={t.id} problem={t.problem} options={problemOptions} />}
           <SurveyCard ticketId={t.id} survey={t.survey} canRate={v.canRate} staff={v.isStaff} />

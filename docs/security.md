@@ -58,11 +58,13 @@ Service-manager-only features (SLA policies, reports, queue management) are not 
 - A non-idempotent call that times out or fails with 5xx is treated as **ambiguous**: the job moves to `needs_review` and is never retried automatically.
 - Imports replace the stored snapshot only after every page succeeded. Atera imports fail closed if any record lacks the mapped customer ID.
 - Provider error text is shown only to staff.
+- AI assistant (Anthropic API): off per customer until an operator turns it on; only public conversation and client-visible help articles are sent, and only when a person presses an assistant button. Output is advisory and rendered as text. Usage is logged without content. See `docs/ai-assistant.md`.
 
 ## Secrets
 
 - Stored in Vercel → Project → Settings → Environment Variables (per environment). Optionally reference Azure Key Vault from there. Never paste secrets into chat, tickets, or the repo.
 - Database stores only the **name** of each Atera API-key variable.
+- `ANTHROPIC_API_KEY` (AI assistant) is set only in Vercel; set a spend limit on the key in the Anthropic Console.
 - Rotation: create the new Entra client secret / Atera key, set it in Vercel for each environment, redeploy, confirm sign-in and a sync run, then delete the old secret. Rotate at least yearly and immediately on suspected exposure. Rotating `CRON_SECRET` only requires updating the variable.
 
 ## Least privilege

@@ -6,6 +6,7 @@ import { PageTransition } from "@/components/page-transition";
 import { listCatalog } from "@/lib/catalog/service";
 import { CATEGORY_LABEL } from "@/lib/tickets/schemas";
 import { NewTicketForm } from "./form";
+import { aiCustomers } from "@/lib/ai/service";
 
 export const metadata = { title: "New request" };
 
@@ -14,6 +15,7 @@ export default async function NewTicketPage() {
   const orgs = principal.memberships.map((m) => ({ id: m.customerId, name: m.customerName }));
   const deviceCustomers = principal.memberships.filter((m) => canSeeOrgFor(principal, m.customerId));
   const catalog = await listCatalog(principal);
+  const aiOrgs = [...(await aiCustomers(orgs.map((o) => o.id)))];
   const devices = deviceCustomers.length ? (await listDevices(principal)).devices.map((d) => ({ id: d.id, name: d.name, customerId: d.customerId })) : [];
   return (
     <PageTransition>
@@ -46,7 +48,7 @@ export default async function NewTicketPage() {
           )}
           <section aria-labelledby="problem-h" className="stack">
             <h2 id="problem-h">{catalog.length ? "Or report a problem" : "Report a problem"}</h2>
-            <NewTicketForm orgs={orgs} devices={devices} />
+            <NewTicketForm orgs={orgs} devices={devices} aiOrgs={aiOrgs} />
           </section>
         </>
       )}

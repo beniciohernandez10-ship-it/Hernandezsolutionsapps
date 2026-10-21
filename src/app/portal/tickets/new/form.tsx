@@ -9,6 +9,8 @@ import { IconAlert } from "@/components/icons";
 interface Props {
   orgs: { id: string; name: string }[];
   devices: { id: string; name: string; customerId: string }[];
+  /** Organizations with the AI assistant turned on. */
+  aiOrgs?: string[];
 }
 
 const PRIORITY_HELP: Record<string, string> = {
@@ -18,7 +20,7 @@ const PRIORITY_HELP: Record<string, string> = {
   urgent: "Business is stopped or a security issue",
 };
 
-export function NewTicketForm({ orgs, devices }: Props) {
+export function NewTicketForm({ orgs, devices, aiOrgs = [] }: Props) {
   const router = useRouter();
   // One key per form instance: retries after a network error can't create duplicates.
   const [idempotencyKey] = useState(() => crypto.randomUUID());
@@ -49,6 +51,30 @@ export function NewTicketForm({ orgs, devices }: Props) {
       if (timer.current) clearTimeout(timer.current);
     };
   }, [text]);
+  // Optional AI answer built only from the suggested help articles.
+  const formRef = useRef<HTMLFormElement>(null);
+  const [help, setHelp] = useState<{ answer: string | null; sources: { id: string; title: string }[] } | null>(null);
+  const [helpBusy, setHelpBusy] = useState(false);
+  const [helpError, setHelpError] = useState<string | null>(null);
+  const aiOn = Boolean(customerId) && aiOrgs.includes(customerId);
+  async function askAssistant() {
+    if (!formRef.current) return;
+    const fd = new FormData(formRef.current);
+    setHelpBusy(true);
+    setHelpError(null);
+    try {
+      setHelp(
+        await apiFetch("/api/ai/self-help", {
+          method: "POST",
+          body: { customerId, title: String(fd.get("title") ?? ""), description: String(fd.get("description") ?? "") },
+        }),
+      );
+    } catch (e) {
+      setHelpError(e instanceof ApiError ? e.message : "Something went wrong.");
+    } finally {
+      setHelpBusy(false);
+    }
+  }
   const onText = (e: React.FormEvent<HTMLFormElement>) => {
     const fd = new FormData(e.currentTarget);
     setText(`${fd.get("title") ?? ""} ${fd.get("description") ?? ""}`);
@@ -93,7 +119,7 @@ export function NewTicketForm({ orgs, devices }: Props) {
     ) : null;
 
   return (
-    <form className="card stack" onSubmit={onSubmit} onInput={onText} noValidate>
+    <form ref={formRef} className="card stack" onSubmit={onSubmit} onInput={onText} noValidate>
       {formError && (
         <div className="alert alert-danger" role="alert">
           <IconAlert />
@@ -138,6 +164,41 @@ export function NewTicketForm({ orgs, devices }: Props) {
             ))}
           </ul>
           <span className="subtle">They open in a new tab, so you won&apos;t lose what you&apos;ve typed.</span>
+          {aiOn && !help && (
+            <div className="row">
+              <button className="btn" type="button" onClick={askAssistant} disabled={helpBusy || text.trim().length < 10}>
+                {helpBusy && <span className="spinner" aria-hidden />}
+                {helpBusy ? "Reading the articles…" : "Get steps from the assistant"}
+              </button>
+            </div>
+          )}
+          {helpError && (
+            <p className="field-error" role="alert">
+              <IconAlert size={16} /> {helpError}
+            </p>
+          )}
+          {help && (
+            <div className="ai-output stack" role="status">
+              {help.answer ? (
+                <>
+                  <strong>Try this first</strong>
+                  <p className="prewrap">{help.answer}</p>
+                  <span className="subtle">
+                    Written by AI from{" "}
+                    {help.sources.map((s, i) => (
+                      <span key={s.id}>
+                        {i > 0 && ", "}
+                        <Link href={`/portal/kb/${s.id}`} target="_blank" rel="noopener">{s.title}</Link>
+                      </span>
+                    ))}
+                    . If it doesn&apos;t fix things, submit your request below.
+                  </span>
+                </>
+              ) : (
+                <span className="subtle">Our help articles don&apos;t cover this one. Submit your request and a technician will help.</span>
+              )}
+            </div>
+          )}
         </aside>
       )}
       <fieldset className="field" aria-describedby={errors.priority ? "priority-err" : undefined}>

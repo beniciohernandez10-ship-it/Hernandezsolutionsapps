@@ -11,6 +11,7 @@ interface Customer {
   status: string;
   is_demo: boolean;
   members: number;
+  ai_enabled: boolean;
   directories: { tenantId: string; name: string; inventory: boolean; consentAt: string | null }[] | null;
   atera: { connection: string; ateraCustomerId: number; verifiedAt: string | null }[] | null;
 }
@@ -63,7 +64,17 @@ function Msg({ m }: { m: { ok: boolean; text: string } | null }) {
   );
 }
 
-export function AdminConsole({ customers, memberships, connections }: { customers: Customer[]; memberships: Record<string, Member[]>; connections: { id: string; name: string }[] }) {
+export function AdminConsole({
+  customers,
+  memberships,
+  connections,
+  aiReady,
+}: {
+  customers: Customer[];
+  memberships: Record<string, Member[]>;
+  connections: { id: string; name: string }[];
+  aiReady: boolean;
+}) {
   const create = useAction();
   return (
     <div className="stack">
@@ -90,13 +101,14 @@ export function AdminConsole({ customers, memberships, connections }: { customer
         <Msg m={create.msg} />
       </form>
       {customers.map((c) => (
-        <CustomerCard key={c.id} c={c} members={memberships[c.id] ?? []} connections={connections} />
+        <CustomerCard key={c.id} c={c} members={memberships[c.id] ?? []} connections={connections} aiReady={aiReady} />
       ))}
     </div>
   );
 }
 
-function CustomerCard({ c, members, connections }: { c: Customer; members: Member[]; connections: { id: string; name: string }[] }) {
+function CustomerCard({ c, members, connections, aiReady }: { c: Customer; members: Member[]; connections: { id: string; name: string }[]; aiReady: boolean }) {
+  const ai = useAction();
   const dir = useAction();
   const grant = useAction();
   const atera = useAction();
@@ -264,6 +276,28 @@ function CustomerCard({ c, members, connections }: { c: Customer; members: Membe
         <button className="btn btn-primary" disabled={grant.busy}>Grant access</button>
         <Msg m={grant.msg} />
       </form>
+
+      <h3>AI assistant</h3>
+      <p className="subtle">
+        {c.ai_enabled ? "On." : "Off."} When on, technicians can draft replies and triage with Claude, and this organization&apos;s people can get steps from
+        published help articles before submitting. Ticket text is sent to Anthropic only when someone uses one of these buttons; private notes and
+        technician-only articles are never sent.
+        {!aiReady && " The assistant has no API key yet (ANTHROPIC_API_KEY), so it stays hidden until one is added."}
+      </p>
+      <div className="row">
+        <button
+          className="btn"
+          disabled={ai.busy}
+          onClick={() => {
+            if (c.ai_enabled || confirm(`Turn on the AI assistant for ${c.name}? Their ticket text will be sent to Anthropic when the assistant is used.`)) {
+              ai.run(() => apiFetch(`/api/admin/customers/${c.id}/ai`, { method: "PUT", body: { enabled: !c.ai_enabled } }), () => `AI assistant turned ${c.ai_enabled ? "off" : "on"}.`);
+            }
+          }}
+        >
+          {c.ai_enabled ? "Turn off AI assistant" : "Turn on AI assistant"}
+        </button>
+      </div>
+      <Msg m={ai.msg} />
 
       <div className="row">
         <span className="label">Lifecycle</span>

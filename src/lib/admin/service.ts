@@ -24,7 +24,7 @@ export async function listCustomersForOperator(p: Principal) {
   requireOperator(p);
   return asSystem(async (tx) => {
     const c = await tx.query(
-      `select c.id, c.slug, c.name, c.status, c.is_demo, c.sla_policy_id,
+      `select c.id, c.slug, c.name, c.status, c.is_demo, c.sla_policy_id, c.ai_enabled,
               (select count(*) from memberships m where m.customer_id = c.id and m.revoked_at is null)::int as members,
               (select json_agg(json_build_object('tenantId', d.tenant_id, 'name', d.display_name, 'inventory', ced.inventory_enabled, 'consentAt', d.inventory_consent_at))
                  from customer_entra_directories ced join entra_directories d on d.id = ced.directory_id where ced.customer_id = c.id) as directories,

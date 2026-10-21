@@ -3,6 +3,7 @@ import { requirePrincipal } from "@/lib/auth/current";
 import { listAteraConnections, listCustomersForOperator, listMembershipsForOperator } from "@/lib/admin/service";
 import { PageTransition } from "@/components/page-transition";
 import { AdminConsole } from "./console";
+import { aiConfigured } from "@/lib/config";
 
 export const metadata = { title: "Administration" };
 
@@ -17,7 +18,7 @@ export default async function AdminPage() {
     );
   }
   const customers = (await listCustomersForOperator(principal)) as {
-    id: string; slug: string; name: string; status: string; is_demo: boolean; members: number;
+    id: string; slug: string; name: string; status: string; is_demo: boolean; members: number; ai_enabled: boolean;
     directories: { tenantId: string; name: string; inventory: boolean; consentAt: string | null }[] | null;
     atera: { connection: string; ateraCustomerId: number; verifiedAt: string | null }[] | null;
   }[];
@@ -39,7 +40,7 @@ export default async function AdminPage() {
         </div>
       </div>
       <p className="subtle">Changes here are audited. Sensitive changes ask you to sign in again if your last sign-in was a while ago.</p>
-      <AdminConsole customers={customers} memberships={memberships} connections={connections} />
+      <AdminConsole customers={customers} memberships={memberships} connections={connections} aiReady={aiConfigured()} />
     </PageTransition>
   );
 }

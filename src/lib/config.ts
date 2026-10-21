@@ -40,6 +40,8 @@ export interface AppConfig {
     webhookSecret?: string;
   };
   attachments: { maxUploadBytes: number; maxEmailBytes: number };
+  /** Claude (Anthropic API). Without a key the AI assistant is hidden everywhere. */
+  ai: { apiKey?: string; model: string };
   cronSecret?: string;
 }
 
@@ -95,6 +97,7 @@ export function loadConfig(env: Env = process.env): AppConfig {
     },
     // Uploads pass through a Vercel Function (4.5 MB request limit); email attachments are fetched server-side.
     attachments: { maxUploadBytes: 4 * 1024 * 1024, maxEmailBytes: 10 * 1024 * 1024 },
+    ai: { apiKey: env.ANTHROPIC_API_KEY || undefined, model: env.AI_MODEL || "claude-opus-5-5" },
     cronSecret: env.CRON_SECRET || undefined,
   };
 }
@@ -116,3 +119,5 @@ export function secureCookies() {
 export const emailSendingEnabled = () => Boolean(config().email.resendApiKey && config().email.from);
 /** Inbound email is configured (sending, plus a receiving domain and webhook secret). */
 export const emailIntakeEnabled = () => emailSendingEnabled() && Boolean(config().email.inboundDomain && config().email.webhookSecret);
+/** The AI assistant has an API key (each customer must still be opted in by an operator). */
+export const aiConfigured = () => Boolean(config().ai.apiKey);

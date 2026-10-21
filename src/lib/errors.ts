@@ -13,6 +13,7 @@ export type ErrorCode =
   | "invalid_transition"
   | "rate_limited"
   | "not_configured"
+  | "ai_unavailable"
   | "internal";
 
 export class AppError extends Error {

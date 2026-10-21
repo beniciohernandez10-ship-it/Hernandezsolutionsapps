@@ -63,6 +63,7 @@ export function ReplyBox({
   closed = false,
   canned = [],
   fill,
+  ai = false,
 }: {
   ticketId: string;
   canInternal: boolean;
@@ -71,9 +72,27 @@ export function ReplyBox({
   /** Staff: saved replies to insert. */
   canned?: { id: string; title: string; body: string }[];
   fill?: { requesterName: string; ticketNumber: number; technicianName: string };
+  /** Staff: the AI assistant is on for this customer. */
+  ai?: boolean;
 }) {
   const m = useMutation();
   const [body, setBody] = useState("");
+  const [drafting, setDrafting] = useState(false);
+  const [draftError, setDraftError] = useState<string | null>(null);
+  const [sources, setSources] = useState<{ id: string; title: string }[] | null>(null);
+  async function draft() {
+    setDrafting(true);
+    setDraftError(null);
+    try {
+      const r = await apiFetch<{ draft: string; sources: { id: string; title: string }[] }>(`/api/tickets/${ticketId}/ai/draft`, { method: "POST" });
+      setBody((b) => (b.trim() ? `${b.trimEnd()}\n\n` : "") + r.draft);
+      setSources(r.sources);
+    } catch (e) {
+      setDraftError(e instanceof ApiError ? e.message : "Something went wrong.");
+    } finally {
+      setDrafting(false);
+    }
+  }
   const [visibility, setVisibility] = useState<"public" | "internal">("public");
   const internal = visibility === "internal";
   return (
@@ -86,7 +105,10 @@ export function ReplyBox({
           () => apiFetch(`/api/tickets/${ticketId}/messages`, { method: "POST", body: { body, visibility } }),
           internal ? "Private note added" : resolved ? "Reply sent and request reopened" : "Reply sent",
         );
-        if (ok) setBody("");
+        if (ok) {
+          setBody("");
+          setSources(null);
+        }
       }}
     >
       <div className="spread">
@@ -130,12 +152,40 @@ export function ReplyBox({
       )}
       <label htmlFor="reply" className="sr-only">{internal ? "Private note" : "Reply"}</label>
       <textarea id="reply" className="textarea" value={body} onChange={(e) => setBody(e.target.value)} maxLength={20000} placeholder={internal ? "Visible to technicians only" : "Write a reply"} />
+      {sources && !internal && (
+        <p className="subtle" aria-live="polite">
+          AI draft. Read and edit it before sending.
+          {sources.length > 0 && (
+            <>
+              {" "}Based on:{" "}
+              {sources.map((s, i) => (
+                <span key={s.id}>
+                  {i > 0 && ", "}
+                  <a href={`/portal/kb/${s.id}`} target="_blank" rel="noopener">{s.title}</a>
+                </span>
+              ))}
+            </>
+          )}
+        </p>
+      )}
+      {draftError && (
+        <div className="alert alert-danger" role="alert">
+          <IconAlert />
+          <div>{draftError}</div>
+        </div>
+      )}
       <Feedback m={m} />
       <div className="row">
         <button className="btn btn-primary" type="submit" disabled={m.busy || !body.trim()}>
           {m.busy && <span className="spinner" aria-hidden />}
           {internal ? "Add private note" : "Send reply"}
         </button>
+        {ai && !internal && (
+          <button className="btn" type="button" onClick={draft} disabled={drafting || m.busy}>
+            {drafting && <span className="spinner" aria-hidden />}
+            {drafting ? "Drafting…" : "Draft with AI"}
+          </button>
+        )}
       </div>
     </form>
   );
