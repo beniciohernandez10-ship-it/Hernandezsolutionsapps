@@ -55,7 +55,7 @@ function Feedback({ m }: { m: ReturnType<typeof useMutation> }) {
   );
 }
 
-export function ReplyBox({ ticketId, canInternal, resolved }: { ticketId: string; canInternal: boolean; resolved: boolean }) {
+export function ReplyBox({ ticketId, canInternal, resolved, closed = false }: { ticketId: string; canInternal: boolean; resolved: boolean; closed?: boolean }) {
   const m = useMutation();
   const [body, setBody] = useState("");
   const [visibility, setVisibility] = useState<"public" | "internal">("public");
@@ -86,6 +86,7 @@ export function ReplyBox({ ticketId, canInternal, resolved }: { ticketId: string
       </div>
       {internal && <p className="subtle">Only technicians assigned to this customer can see private notes. The customer is never shown this.</p>}
       {!canInternal && resolved && <p className="subtle">This request is resolved. Replying will reopen it.</p>}
+      {canInternal && closed && <p className="subtle">This request is closed. Replies and notes won&apos;t reopen it.</p>}
       <label htmlFor="reply" className="sr-only">{internal ? "Private note" : "Reply"}</label>
       <textarea id="reply" className="textarea" value={body} onChange={(e) => setBody(e.target.value)} maxLength={20000} placeholder={internal ? "Visible to technicians only" : "Write a reply"} />
       <Feedback m={m} />
@@ -101,15 +102,57 @@ export function ReplyBox({ ticketId, canInternal, resolved }: { ticketId: string
 
 export function StatusControls({ ticketId, version, status, options, staff }: { ticketId: string; version: number; status: Status; options: Status[]; staff: boolean }) {
   const m = useMutation();
-  const update = (next: Status) =>
-    m.run(() => apiFetch(`/api/tickets/${ticketId}`, { method: "PATCH", body: { expectedVersion: version, status: next } }), `Status changed to ${STATUS_LABEL[next]}`);
+  const [resolving, setResolving] = useState(false);
+  const [resolution, setResolution] = useState("");
+  const update = (next: Status, extra: Record<string, unknown> = {}) =>
+    m.run(() => apiFetch(`/api/tickets/${ticketId}`, { method: "PATCH", body: { expectedVersion: version, status: next, ...extra } }), `Status changed to ${STATUS_LABEL[next]}`);
+
+  const resolveForm = (
+    <form
+      className="stack"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        if (staff && resolution.trim().length < 10) return;
+        if (await update("resolved", resolution.trim() ? { resolution: resolution.trim() } : {})) {
+          setResolving(false);
+          setResolution("");
+        }
+      }}
+    >
+      <div className="field">
+        <label htmlFor="resolution">{staff ? "Resolution details" : "Anything to add? (optional)"}</label>
+        <span className="hint" id="resolution-hint">
+          {staff ? "What fixed it. The requester sees this." : "For example, what fixed it for you."} The request closes automatically 5 days after it&apos;s resolved.
+        </span>
+        <textarea
+          id="resolution"
+          className="textarea"
+          rows={3}
+          maxLength={5000}
+          required={staff}
+          minLength={staff ? 10 : undefined}
+          aria-describedby="resolution-hint"
+          value={resolution}
+          onChange={(e) => setResolution(e.target.value)}
+        />
+      </div>
+      <div className="row">
+        <button className="btn btn-primary" type="submit" disabled={m.busy || (staff && resolution.trim().length < 10)}>
+          {staff ? "Resolve" : "Mark as fixed"}
+        </button>
+        <button type="button" className="btn btn-ghost" onClick={() => setResolving(false)}>Cancel</button>
+      </div>
+    </form>
+  );
+
   if (!staff) {
     return (
       <section className="card tight stack">
         <h2 className="eyebrow">Actions</h2>
-        {options.includes("resolved") && (
-          <button className="btn btn-block" disabled={m.busy} onClick={() => update("resolved")}>My issue is fixed</button>
+        {options.includes("resolved") && !resolving && (
+          <button className="btn btn-block" disabled={m.busy} onClick={() => setResolving(true)}>My issue is fixed</button>
         )}
+        {resolving && resolveForm}
         {options.includes("open") && status === "resolved" && (
           <button className="btn btn-block" disabled={m.busy} onClick={() => update("open")}>Reopen request</button>
         )}
@@ -120,13 +163,17 @@ export function StatusControls({ ticketId, version, status, options, staff }: { 
   return (
     <section className="card tight stack">
       <h2 className="eyebrow">Status</h2>
-      <div className="row">
-        {options.map((s) => (
-          <button key={s} className="btn" disabled={m.busy} onClick={() => update(s)}>
-            {status === "resolved" && s === "open" ? "Reopen" : `Mark ${STATUS_LABEL[s].toLowerCase()}`}
-          </button>
-        ))}
-      </div>
+      {resolving ? (
+        resolveForm
+      ) : (
+        <div className="row">
+          {options.map((s) => (
+            <button key={s} className={`btn${s === "resolved" ? " btn-primary" : ""}`} disabled={m.busy} onClick={() => (s === "resolved" ? setResolving(true) : update(s))}>
+              {(status === "resolved" || status === "closed") && s === "open" ? "Reopen" : s === "resolved" ? "Resolve…" : `Mark ${STATUS_LABEL[s].toLowerCase()}`}
+            </button>
+          ))}
+        </div>
+      )}
       <Feedback m={m} />
     </section>
   );

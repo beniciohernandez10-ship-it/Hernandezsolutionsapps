@@ -80,7 +80,7 @@ export function dueTimes(policy: SlaPolicy, priority: Priority, createdAt: Date,
   };
 }
 
-const PAUSED: Status[] = ["waiting", "resolved"];
+const PAUSED: Status[] = ["waiting", "resolved", "closed"];
 
 /** Sets SLA fields on a newly created ticket from its customer's policy (if any). */
 export async function applySlaOnCreate(tx: Queryable, ticketId: string) {
@@ -179,7 +179,7 @@ export function slaSummary(row: Record<string, unknown>, policyName: string | nu
 
 /** Compact list badge for staff: the worst open SLA state. */
 export function slaBadge(row: Record<string, unknown>, now = new Date()): "breached" | "at_risk" | null {
-  if (!row.sla_policy_id || row.status === "resolved") return null;
+  if (!row.sla_policy_id || row.status === "resolved" || row.status === "closed") return null;
   const s = slaSummary(row, "x", now);
   if (!s) return null;
   const states = [s.firstResponse.respondedAt ? null : s.firstResponse.state, s.resolution.state];
@@ -212,7 +212,7 @@ export async function sweepSla(now = new Date()): Promise<SweepEvent[]> {
         events.push({ ticketId: t.id, customerId: t.customer_id, kind, target });
       }
     };
-    const open = "status <> 'resolved' and sla_policy_id is not null";
+    const open = "status not in ('resolved', 'closed') and sla_policy_id is not null";
     await mark(
       `update tickets set first_response_breached_at = $1 where ${open} and first_response_at is null
          and first_response_breached_at is null and first_response_due_at <= $1 returning id, customer_id`,

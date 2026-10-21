@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { freshDatabase, principal, expectAppError } from "../helpers";
 import { DEMO } from "@/lib/db/seed";
-import { addMessage, createTicket, getTicket, listTickets, updateTicket } from "@/lib/tickets/service";
+import { addMessage, autoCloseResolved, createTicket, getTicket, listTickets, updateTicket } from "@/lib/tickets/service";
 import { asSystem } from "@/lib/db";
 
 const U = DEMO.users;
@@ -130,27 +130,56 @@ describe("status lifecycle and concurrency", () => {
     expect(m.status).toBe("open");
   });
 
-  it("requesters may resolve their own ticket and reopen within the window", async () => {
+  it("requesters may confirm their own ticket is fixed, and reopen it while it is resolved", async () => {
     const req = await principal(U.contosoRequester);
     const r = await createTicket(req, input(), randomUUID());
     const resolved = await updateTicket(req, r.id, { expectedVersion: 1, status: "resolved" });
-    expect((await getTicket(req, r.id)).resolvedAt).not.toBeNull();
+    const done = await getTicket(req, r.id);
+    expect(done.resolvedAt).not.toBeNull();
+    expect(done.resolutionNote).toBe("Confirmed fixed by the requester.");
     await updateTicket(req, r.id, { expectedVersion: resolved.version, status: "open" });
     const t = await getTicket(req, r.id);
     expect(t.status).toBe("open");
     expect(t.reopenCount).toBe(1);
     expect(t.resolvedAt).toBeNull();
+    expect(t.resolutionNote).toBeNull();
     expect(t.events.some((e) => e.kind === "reopened")).toBe(true);
   });
 
-  it("customers cannot reopen after the reopen window; staff can", async () => {
+  it("technicians must give resolution details", async () => {
+    const r = await createTicket(await principal(U.contosoRequester), input(), randomUUID());
+    const tech = await principal(U.tech);
+    await expectAppError(updateTicket(tech, r.id, { expectedVersion: 1, status: "resolved" }), 422);
+    await expectAppError(updateTicket(tech, r.id, { expectedVersion: 1, status: "resolved", resolution: "fixed" }), 422);
+    await updateTicket(tech, r.id, { expectedVersion: 1, status: "resolved", resolution: "Replaced the failed power supply." });
+    const t = await getTicket(await principal(U.contosoRequester), r.id);
+    expect(t.status).toBe("resolved");
+    expect(t.resolutionNote).toBe("Replaced the failed power supply.");
+  });
+
+  it("resolved tickets close after five days; then customers cannot reopen or reply, staff still can", async () => {
     const req = await principal(U.contosoRequester);
+    const tech = await principal(U.tech);
     const r = await createTicket(req, input(), randomUUID());
-    const res = await updateTicket(await principal(U.tech), r.id, { expectedVersion: 1, status: "resolved" });
-    await asSystem((tx) => tx.query("update tickets set resolved_at = now() - interval '30 days' where id = $1", [r.id]));
-    await expectAppError(updateTicket(req, r.id, { expectedVersion: res.version, status: "open" }), 409, "reopen_window_closed");
-    await expectAppError(addMessage(req, r.id, { body: "still broken" }), 409, "reopen_window_closed");
-    const re = await updateTicket(await principal(U.tech), r.id, { expectedVersion: res.version, status: "open" });
+    const fresh = await createTicket(req, input(), randomUUID());
+    await updateTicket(tech, r.id, { expectedVersion: 1, status: "resolved", resolution: "Reset the network adapter." });
+    await updateTicket(tech, fresh.id, { expectedVersion: 1, status: "resolved", resolution: "Reset the network adapter." });
+    await asSystem((tx) => tx.query("update tickets set resolved_at = now() - interval '6 days' where id = $1", [r.id]));
+    await asSystem((tx) => tx.query("update tickets set resolved_at = now() - interval '4 days' where id = $1", [fresh.id]));
+    await autoCloseResolved();
+    expect((await getTicket(req, fresh.id)).status).toBe("resolved");
+    const closed = await getTicket(req, r.id);
+    expect(closed.status).toBe("closed");
+    expect(closed.viewer.canReply).toBe(false);
+    expect(closed.viewer.canChangeStatus).toEqual([]);
+    expect(closed.events.some((e) => e.kind === "closed")).toBe(true);
+    await expectAppError(updateTicket(req, r.id, { expectedVersion: closed.version, status: "open" }), 409, "ticket_closed");
+    await expectAppError(addMessage(req, r.id, { body: "still broken" }), 409, "ticket_closed");
+    await expectAppError(updateTicket(await principal(U.contosoAdmin), r.id, { expectedVersion: closed.version, status: "open" }), 409, "ticket_closed");
+    // Technicians can still add a note or reply, and can reopen a ticket closed by mistake.
+    expect((await addMessage(tech, r.id, { body: "Following up internally", visibility: "internal" })).status).toBe("closed");
+    const v = (await getTicket(tech, r.id)).version;
+    const re = await updateTicket(tech, r.id, { expectedVersion: v, status: "open" });
     expect(re.status).toBe("open");
   });
 

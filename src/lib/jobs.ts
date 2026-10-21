@@ -7,6 +7,7 @@ import { syncAteraAgents, verifyAteraMapping } from "./integrations/atera";
 import { purgeExpiredAuthState } from "./auth/session";
 import { fanOutTicketEvent, notifySlaEvents, sendNotificationEmail } from "./notify/service";
 import { sweepSla } from "./sla/service";
+import { autoCloseResolved } from "./tickets/service";
 import { ingestInboundEmail } from "./email/inbound";
 
 export { enqueue };
@@ -41,7 +42,14 @@ const handlers = new Map<string, Handler>([
   ["notify.ticket", (j) => fanOutTicketEvent(j.payload)],
   ["email.notification", (j) => sendNotificationEmail(j.payload)],
   ["email.ingest", (j) => ingestInboundEmail(String(j.payload.inboundId))],
-  ["sla.sweep", async () => notifySlaEvents(await sweepSla())],
+  // One sweep for time-based ticket rules: SLA warnings/breaches and closing resolved tickets.
+  [
+    "sla.sweep",
+    async () => {
+      await notifySlaEvents(await sweepSla());
+      await autoCloseResolved();
+    },
+  ],
   [
     "atera.ticket_write",
     async () => {

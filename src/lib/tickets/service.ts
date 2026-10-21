@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { withUser, type Queryable } from "../db";
+import { asSystem, withUser, type Queryable } from "../db";
 import {
   canSeeOrgFor,
   customersWhere,
@@ -64,6 +64,9 @@ export interface TicketDetail extends TicketSummary {
   queueId: string | null;
   firstResponseAt: string | null;
   resolvedAt: string | null;
+  /** What fixed it (set when resolved). */
+  resolutionNote: string | null;
+  closedAt: string | null;
   reopenCount: number;
   messages: TicketMessage[];
   events: { kind: string; fromValue: string | null; toValue: string | null; actorName: string | null; createdAt: string }[];
@@ -160,7 +163,7 @@ export async function listTickets(p: Principal, raw: Partial<Record<keyof ListTi
       params.push(f.customerId);
       where.push(`t.customer_id = $${params.length}`);
     }
-    if (f.status === "active") where.push(`t.status <> 'resolved'`);
+    if (f.status === "active") where.push(`t.status not in ('resolved', 'closed')`);
     else if (f.status) {
       params.push(f.status);
       where.push(`t.status = $${params.length}`);
@@ -193,7 +196,7 @@ export async function listTickets(p: Principal, raw: Partial<Record<keyof ListTi
     params.push(f.pageSize, (f.page - 1) * f.pageSize);
     const rows = await tx.query(
       `select ${SUMMARY_COLUMNS} ${SUMMARY_JOINS} where ${whereSql}
-       order by case t.status when 'resolved' then 1 else 0 end, t.updated_at desc, t.number desc
+       order by case when t.status in ('resolved', 'closed') then 1 else 0 end, t.updated_at desc, t.number desc
        limit $${params.length - 1} offset $${params.length}`,
       params,
     );
@@ -206,7 +209,7 @@ async function loadTicketRow(tx: Queryable, p: Principal, id: string) {
   const params: unknown[] = [id];
   const r = await tx.query(
     `select ${SUMMARY_COLUMNS}, t.description, t.requester_user_id, t.assignee_user_id, t.queue_id,
-            t.reopen_count, t.request_data, sp.name as sla_policy_name
+            t.reopen_count, t.request_data, t.resolution_note, t.closed_at, sp.name as sla_policy_name
        ${SUMMARY_JOINS}
        left join sla_policies sp on sp.id = t.sla_policy_id
       where t.id = $1 and ${scopeClause(p, params)}`,
@@ -217,10 +220,30 @@ async function loadTicketRow(tx: Queryable, p: Principal, id: string) {
   return r.rows[0];
 }
 
-function reopenAllowed(resolvedAt: unknown) {
-  if (!resolvedAt) return false;
-  const ageMs = Date.now() - new Date(resolvedAt as string).getTime();
-  return ageMs <= config().reopenWindowDays * 86400_000;
+/** Customers may reopen a resolved ticket until it closes; closed tickets stay closed for them. */
+function reopenAllowed(status: unknown) {
+  return status === "resolved";
+}
+
+const closedError = () =>
+  new AppError(409, "ticket_closed", "This request is closed. Please open a new request and mention this one if it's related.");
+
+/** Closes tickets resolved more than CLOSE_AFTER_DAYS ago. */
+export async function autoCloseResolved(now = new Date()) {
+  return asSystem(async (tx) => {
+    const r = await tx.query<{ id: string; customer_id: string }>(
+      `update tickets set status = 'closed', closed_at = $1, updated_at = $1, version = version + 1
+        where status = 'resolved' and resolved_at <= $1::timestamptz - make_interval(days => $2::int) returning id, customer_id`,
+      [now, config().closeAfterDays],
+    );
+    for (const t of r.rows) {
+      await tx.query(
+        "insert into ticket_events (ticket_id, customer_id, actor_user_id, kind, from_value, to_value) values ($1, $2, null, 'closed', 'resolved', 'closed')",
+        [t.id, t.customer_id],
+      );
+    }
+    return r.rows.length;
+  });
 }
 
 /** Status transitions a viewer may request (the server re-validates in updateTicket). */
@@ -228,14 +251,17 @@ function allowedStatuses(p: Principal, row: Record<string, unknown>): Status[] {
   const status = row.status as Status;
   const customerId = row.customer_id as string;
   if (isStaffFor(p, customerId)) {
+    // Technicians can reopen a closed ticket (audited); closing itself is automatic.
+    if (status === "closed") return ["open"];
     const options: Status[] = ["open", "in_progress", "waiting", "resolved"];
-    // Work starts once a request is approved; until then it can only be closed.
+    // Work starts once a request is approved; until then it can only be resolved.
     return options.filter((s) => s !== status && !(row.approval_status === "pending" && (s === "in_progress" || s === "waiting")));
   }
   const role = roleFor(p, customerId);
   const ownsOrOrg = role === "client_admin" || row.requester_user_id === p.userId;
   if (!ownsOrOrg) return [];
-  if (status === "resolved") return reopenAllowed(row.resolved_at) ? ["open"] : [];
+  if (status === "closed") return [];
+  if (status === "resolved") return ["open"];
   return ["resolved"];
 }
 
@@ -279,6 +305,8 @@ export async function getTicket(p: Principal, id: string): Promise<TicketDetail>
       queueId: (row.queue_id as string) ?? null,
       firstResponseAt: iso(row.first_response_at),
       resolvedAt: iso(row.resolved_at),
+      resolutionNote: (row.resolution_note as string) ?? null,
+      closedAt: iso(row.closed_at),
       reopenCount: Number(row.reopen_count),
       messages: msgs.rows.map((m) => ({
         id: m.id as string,
@@ -310,12 +338,12 @@ export async function getTicket(p: Principal, id: string): Promise<TicketDetail>
       viewer: {
         role: roleFor(p, customerId)!,
         isStaff: staff,
-        canReply: staff || row.status !== "resolved" || reopenAllowed(row.resolved_at),
+        canReply: staff || row.status !== "closed",
         canAddInternalNote: staff,
         canChangeStatus: statuses,
         canAssign: staff,
         canLinkDevices: canSeeOrgFor(p, customerId),
-        reopenAllowed: row.status === "resolved" && (staff || reopenAllowed(row.resolved_at)),
+        reopenAllowed: staff ? row.status === "resolved" || row.status === "closed" : reopenAllowed(row.status),
       },
     };
   });
@@ -418,12 +446,8 @@ export async function addMessage(p: Principal, ticketId: string, raw: unknown, o
 
     let newStatus: Status | null = null;
     if (input.visibility === "public" && !staff) {
-      if (row.status === "resolved") {
-        if (!reopenAllowed(row.resolved_at)) {
-          throw new AppError(409, "reopen_window_closed", `This ticket was resolved more than ${config().reopenWindowDays} days ago. Please open a new request.`);
-        }
-        newStatus = "open";
-      } else if (row.status === "waiting") newStatus = "open";
+      if (row.status === "closed") throw closedError();
+      if (row.status === "resolved" || row.status === "waiting") newStatus = "open";
     }
 
     const m = await tx.query<{ id: string }>(
@@ -435,7 +459,7 @@ export async function addMessage(p: Principal, ticketId: string, raw: unknown, o
     if (staff && input.visibility === "public") sets.push("first_response_at = coalesce(first_response_at, now())");
     if (newStatus) {
       sets.push(`status = '${newStatus}'`);
-      if (row.status === "resolved") sets.push("resolved_at = null", "reopen_count = reopen_count + 1");
+      if (row.status === "resolved") sets.push("resolved_at = null", "resolution_note = null", "reopen_count = reopen_count + 1");
     }
     await tx.query(`update tickets set ${sets.join(", ")} where id = $1`, [ticketId]);
     if (newStatus) {
@@ -466,9 +490,7 @@ export async function updateTicket(p: Principal, ticketId: string, raw: unknown)
       throw forbidden("Only technicians can change priority or assignment.");
     }
     if (input.status && input.status !== row.status && !allowedStatuses(p, row).includes(input.status)) {
-      if (!staff && row.status === "resolved" && input.status === "open") {
-        throw new AppError(409, "reopen_window_closed", `This ticket was resolved more than ${config().reopenWindowDays} days ago. Please open a new request.`);
-      }
+      if (!staff && row.status === "closed") throw closedError();
       throw staff
         ? new AppError(422, "invalid_transition", "That status change is not allowed.")
         : forbidden("You cannot make that status change.");
@@ -481,15 +503,33 @@ export async function updateTicket(p: Principal, ticketId: string, raw: unknown)
       if (!ok.rows[0]) throw new AppError(422, "validation_failed", "That person is not assigned to this customer.", { field: "assigneeUserId" });
     }
 
+    // Resolving records what fixed it: technicians must say; a requester's confirmation needs no details.
+    let resolutionNote: string | null = null;
+    if (input.status === "resolved" && input.status !== row.status) {
+      if (staff) {
+        if (!input.resolution || input.resolution.length < 10) {
+          throw new AppError(422, "validation_failed", "Describe how this was resolved (at least 10 characters).", {
+            fields: [{ path: "resolution", message: "Describe how this was resolved." }],
+          });
+        }
+        resolutionNote = input.resolution;
+      } else {
+        resolutionNote = input.resolution ? `Confirmed fixed by the requester: ${input.resolution}` : "Confirmed fixed by the requester.";
+      }
+    }
     const sets: string[] = ["updated_at = now()", "version = version + 1"];
     const params: unknown[] = [ticketId, input.expectedVersion];
     const events: [string, string | null, string | null][] = [];
     if (input.status && input.status !== row.status) {
       params.push(input.status);
       sets.push(`status = $${params.length}`);
-      if (input.status === "resolved") sets.push("resolved_at = now()");
-      if (row.status === "resolved") sets.push("resolved_at = null", "reopen_count = reopen_count + 1");
-      events.push([row.status === "resolved" ? "reopened" : "status_changed", row.status as string, input.status]);
+      if (input.status === "resolved") {
+        params.push(resolutionNote);
+        sets.push("resolved_at = now()", `resolution_note = $${params.length}`);
+      }
+      const wasDone = row.status === "resolved" || row.status === "closed";
+      if (wasDone) sets.push("resolved_at = null", "closed_at = null", "resolution_note = null", "reopen_count = reopen_count + 1");
+      events.push([wasDone ? "reopened" : "status_changed", row.status as string, input.status]);
     }
     if (input.priority && input.priority !== row.priority) {
       params.push(input.priority);
@@ -596,15 +636,15 @@ export async function dashboard(p: Principal) {
          count(*) filter (where t.status = 'open')::text as open,
          count(*) filter (where t.status = 'in_progress')::text as in_progress,
          count(*) filter (where t.status = 'waiting')::text as waiting,
-         count(*) filter (where t.status = 'resolved' and t.resolved_at > now() - interval '30 days')::text as resolved_30d,
-         count(*) filter (where t.status <> 'resolved' and t.assignee_user_id is null)::text as unassigned,
-         count(*) filter (where t.status <> 'resolved' and t.assignee_user_id = $${me})::text as assigned_to_me,
-         count(*) filter (where t.status <> 'resolved' and t.priority in ('high', 'urgent'))::text as high_priority,
+         count(*) filter (where t.status in ('resolved', 'closed') and t.resolved_at > now() - interval '30 days')::text as resolved_30d,
+         count(*) filter (where t.status not in ('resolved', 'closed') and t.assignee_user_id is null)::text as unassigned,
+         count(*) filter (where t.status not in ('resolved', 'closed') and t.assignee_user_id = $${me})::text as assigned_to_me,
+         count(*) filter (where t.status not in ('resolved', 'closed') and t.priority in ('high', 'urgent'))::text as high_priority,
          (percentile_cont(0.5) within group (order by extract(epoch from (t.first_response_at - t.created_at)))
             filter (where t.first_response_at is not null and t.created_at > now() - interval '30 days'))::text as median_first_response_s,
          count(*) filter (where t.first_response_at is not null and t.created_at > now() - interval '30 days')::text as responded_30d,
-         count(*) filter (where ${staffCust} and t.status <> 'resolved' and ${breached})::text as sla_breached,
-         count(*) filter (where ${staffCust} and t.status <> 'resolved' and not ${breached}
+         count(*) filter (where ${staffCust} and t.status not in ('resolved', 'closed') and ${breached})::text as sla_breached,
+         count(*) filter (where ${staffCust} and t.status not in ('resolved', 'closed') and not ${breached}
            and ((t.first_response_at is null and t.first_response_warned_at is not null)
                 or (t.sla_paused_since is null and t.resolution_warned_at is not null)))::text as sla_at_risk,
          count(*) filter (where ${staffCust} and t.created_at > now() - interval '30 days' and t.first_response_at is not null)::text as sla_fr_sample,

@@ -1342,3 +1342,11 @@ label.btn[aria-disabled="true"] {
     grid-column: 1 / -1;
   }
 }
+
+.resolution {
+  border-left: 3px solid var(--color-success);
+}
+.badge.status-closed {
+  color: var(--color-text-muted);
+  border-style: solid;
+}

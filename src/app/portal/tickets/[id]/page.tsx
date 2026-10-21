@@ -7,6 +7,7 @@ import { notFound } from "next/navigation";
 import { CATEGORY_LABEL, STATUS_LABEL, type Category, type Priority, type Status } from "@/lib/tickets/schemas";
 import { ComplianceBadge, EmailBadge, InternalBadge, PriorityBadge, SlaBadge, StatusBadge } from "@/components/badges";
 import { markRead } from "@/lib/notify/service";
+import { config } from "@/lib/config";
 import { attachmentsEnabled } from "@/lib/attachments/storage";
 import { AttachmentPanel } from "./attachments";
 import { ApprovalCard, TaskList } from "./request";
@@ -21,6 +22,7 @@ const EVENT_TEXT: Record<string, (from: string | null, to: string | null) => str
   created: () => "created this request",
   status_changed: (f, t) => `changed status from ${STATUS_LABEL[f as Status] ?? f} to ${STATUS_LABEL[t as Status] ?? t}`,
   reopened: () => "reopened this request",
+  closed: () => "closed this request automatically",
   assigned: (_f, t) => (t ? "changed the assignee" : "removed the assignee"),
   priority_changed: (f, t) => `changed priority from ${f} to ${t}`,
   device_linked: () => "linked a device",
@@ -60,6 +62,7 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
   // Viewing a ticket clears its notifications.
   await markRead(principal, { ticketId: t.id }).catch(() => 0);
   const sla = t.slaDetail;
+  const closeAfterDays = config().closeAfterDays;
 
   type Item = { at: string; kind: "message"; m: (typeof t.messages)[number] } | { at: string; kind: "event"; e: (typeof t.events)[number] };
   const timeline: Item[] = [
@@ -122,6 +125,21 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
             )}
           </article>
 
+          {t.resolutionNote && (
+            <section className="card resolution" aria-labelledby="resolution-h">
+              <h2 id="resolution-h" className="eyebrow">
+                {t.status === "closed" ? "Closed" : "Resolved"}
+                {t.resolvedAt && <> · <Time iso={t.resolvedAt} mode="absolute" /></>}
+              </h2>
+              <p className="prewrap">{t.resolutionNote}</p>
+              {t.status === "resolved" && t.resolvedAt && (
+                <p className="subtle">
+                  Closes automatically on <Time iso={new Date(new Date(t.resolvedAt).getTime() + closeAfterDays * 86400000).toISOString()} mode="absolute" />. Reply before then if it isn&apos;t fixed.
+                </p>
+              )}
+            </section>
+          )}
+
           <section aria-labelledby="conv-h">
             <h2 id="conv-h" className="sr-only">Conversation</h2>
             <ol className="timeline">
@@ -150,10 +168,12 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
           </section>
 
           {v.canReply ? (
-            <ReplyBox ticketId={t.id} canInternal={v.canAddInternalNote} resolved={t.status === "resolved"} />
+            <ReplyBox ticketId={t.id} canInternal={v.canAddInternalNote} resolved={t.status === "resolved"} closed={t.status === "closed"} />
           ) : (
             <p className="alert alert-warning">
-              <span>This request was resolved a while ago. Please open a new request if you still need help.</span>
+              <span>
+                This request is closed. If you still need help, <Link href="/portal/tickets/new">open a new request</Link> and mention #{t.number}.
+              </span>
             </p>
           )}
         </div>

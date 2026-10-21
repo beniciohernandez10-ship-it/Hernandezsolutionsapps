@@ -9,6 +9,7 @@ export type ErrorCode =
   | "version_conflict"
   | "idempotency_conflict"
   | "reopen_window_closed"
+  | "ticket_closed"
   | "invalid_transition"
   | "rate_limited"
   | "not_configured"

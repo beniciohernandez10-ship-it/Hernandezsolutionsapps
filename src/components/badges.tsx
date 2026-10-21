@@ -4,7 +4,7 @@ import { IconAlert, IconArrowDown, IconArrowUp, IconBolt, IconCheck, IconClock, 
 /* Every badge pairs an icon and a text label with its color, so status,
    priority and compliance never rely on color alone. */
 
-const STATUS_ICON = { open: IconOpen, in_progress: IconProgress, waiting: IconWaiting, resolved: IconResolved };
+const STATUS_ICON = { open: IconOpen, in_progress: IconProgress, waiting: IconWaiting, resolved: IconResolved, closed: IconLock };
 
 export function StatusBadge({ status }: { status: Status }) {
   const Icon = STATUS_ICON[status];

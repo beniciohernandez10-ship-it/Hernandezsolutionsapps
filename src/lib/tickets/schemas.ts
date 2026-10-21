@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const PRIORITIES = ["low", "normal", "high", "urgent"] as const;
 export const CATEGORIES = ["general", "account_access", "hardware", "software", "network", "email", "security", "other"] as const;
-export const STATUSES = ["open", "in_progress", "waiting", "resolved"] as const;
+export const STATUSES = ["open", "in_progress", "waiting", "resolved", "closed"] as const;
 
 export type Priority = (typeof PRIORITIES)[number];
 export type Category = (typeof CATEGORIES)[number];
@@ -14,6 +14,7 @@ export const STATUS_LABEL: Record<Status, string> = {
   in_progress: "In progress",
   waiting: "Waiting",
   resolved: "Resolved",
+  closed: "Closed",
 };
 export const CATEGORY_LABEL: Record<Category, string> = {
   general: "General question",
@@ -61,6 +62,12 @@ export const updateTicketSchema = z
     priority: z.enum(PRIORITIES).optional(),
     assigneeUserId: z.uuid().nullable().optional(),
     queueId: z.uuid().nullable().optional(),
+    /** What fixed it. Required when a technician resolves; an optional comment when the requester confirms. */
+    resolution: z
+      .string()
+      .transform((s) => s.replace(/\r\n/g, "\n").trim())
+      .pipe(z.string().max(5000, { error: "Resolution details must be at most 5000 characters." }))
+      .optional(),
   })
   .refine((v) => v.status || v.priority || v.assigneeUserId !== undefined || v.queueId !== undefined, {
     error: "Nothing to update.",

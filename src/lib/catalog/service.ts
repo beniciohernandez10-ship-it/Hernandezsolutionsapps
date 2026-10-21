@@ -158,8 +158,8 @@ export async function decideApproval(p: Principal, ticketId: string, raw: unknow
     if (!a.rowCount) throw new AppError(409, "invalid_transition", "This request isn't waiting for approval.");
     await tx.query(
       `update tickets set approval_status = $2, updated_at = now(), version = version + 1
-         ${input.decision === "rejected" ? ", status = 'resolved', resolved_at = now()" : ""} where id = $1`,
-      [ticketId, input.decision],
+         ${input.decision === "rejected" ? ", status = 'resolved', resolved_at = now(), resolution_note = $3" : ""} where id = $1`,
+      input.decision === "rejected" ? [ticketId, input.decision, `Not approved: ${input.note}`] : [ticketId, input.decision],
     );
     await tx.query("insert into ticket_events (ticket_id, customer_id, actor_user_id, kind, to_value) values ($1, $2, $3, $4, $5)", [
       ticketId,

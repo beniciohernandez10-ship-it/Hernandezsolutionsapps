@@ -15,7 +15,8 @@ export interface AppConfig {
   sessionIdleMinutes: number;
   sessionAbsoluteHours: number;
   reauthMinutes: number;
-  reopenWindowDays: number;
+  /** Days after resolution before a ticket closes automatically (then the customer can no longer reopen it). */
+  closeAfterDays: number;
   entra: {
     clientId?: string;
     clientSecret?: string;
@@ -73,7 +74,7 @@ export function loadConfig(env: Env = process.env): AppConfig {
     sessionIdleMinutes: int(env.SESSION_IDLE_MINUTES, 120),
     sessionAbsoluteHours: int(env.SESSION_ABSOLUTE_HOURS, 12),
     reauthMinutes: int(env.REAUTH_MINUTES, 15),
-    reopenWindowDays: int(env.REOPEN_WINDOW_DAYS, 14),
+    closeAfterDays: int(env.CLOSE_AFTER_DAYS, 5),
     entra: {
       clientId: env.ENTRA_CLIENT_ID || undefined,
       clientSecret: env.ENTRA_CLIENT_SECRET || undefined,

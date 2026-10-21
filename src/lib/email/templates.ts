@@ -32,7 +32,7 @@ export function describeNotification(kind: NotificationKind, actor: string | nul
     case "internal_note":
       return `${who} added a private note.`;
     case "status_changed":
-      if (detail === "resolved") return `${who} marked this request as resolved.`;
+      if (detail === "resolved") return `${who} marked this request as resolved. It closes automatically after a few days; reply before then if it isn't fixed.`;
       if (detail === "waiting") return `${who} is waiting on more information from you.`;
       return `${who} changed the status to ${STATUS_LABEL[detail as Status] ?? detail}.`;
     case "assigned":

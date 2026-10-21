@@ -22,6 +22,8 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
   if (!url.pathname.startsWith("/_next/static/")) return; // network only
+  // Development builds reuse file names, so caching them would serve stale code.
+  if (url.hostname === "localhost" || url.hostname === "127.0.0.1") return;
 
   event.respondWith(
     caches.open(STATIC_CACHE).then(async (cache) => {

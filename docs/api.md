@@ -37,7 +37,7 @@ Codes: `unauthenticated` (401), `reauth_required` (401), `forbidden` (403), `csr
 
 Priorities: `low`, `normal`, `high`, `urgent`. Categories: `general`, `account_access`, `hardware`, `software`, `network`, `email`, `security`, `other`.
 
-Reopen policy: customers may reopen within `REOPEN_WINDOW_DAYS` (default 14) of resolution; staff any time. Every reopen increments `reopenCount` and records a `reopened` event.
+Resolution and closure: technicians must send `resolution` (at least 10 characters) when setting `status: "resolved"`; a requester confirming the fix may add an optional comment. A resolved ticket closes automatically after `CLOSE_AFTER_DAYS` (default 5). Until then the customer can reply or reopen; once `closed`, customers get `409 ticket_closed` and must open a new request. Technicians can still reopen a closed ticket (audited). Every reopen increments `reopenCount`.
 
 ## Devices
 
