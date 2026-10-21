@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { apiFetch, ApiError } from "@/components/client-api";
 import { PrimaryUserPicker, type PrimaryUserRef } from "@/components/primary-user-picker";
 import { IconAlert } from "@/components/icons";
+import { HardwareFields, hardwareFrom, type HardwareValues } from "@/components/hardware-fields";
 
 interface Props {
   id: string;
@@ -13,6 +14,7 @@ interface Props {
   location: string;
   notes: string;
   primaryUser: { name: string; upn: string | null } | null;
+  hardware: HardwareValues;
 }
 
 export function AssetControls(p: Props) {
@@ -40,7 +42,7 @@ export function AssetControls(p: Props) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     save(
-      { location: String(fd.get("location") ?? ""), notes: String(fd.get("notes") ?? ""), ...(user ? { primaryUser: user } : {}) },
+      { location: String(fd.get("location") ?? ""), notes: String(fd.get("notes") ?? ""), hardware: hardwareFrom(fd), ...(user ? { primaryUser: user } : {}) },
       "Saved.",
     );
   }
@@ -58,6 +60,7 @@ export function AssetControls(p: Props) {
           <label htmlFor="edit-notes">Notes</label>
           <textarea id="edit-notes" name="notes" className="textarea" maxLength={1000} defaultValue={p.notes} />
         </div>
+        <HardwareFields initial={p.hardware} />
         <button className="btn btn-primary" type="submit" disabled={busy}>Save changes</button>
       </form>
       <button

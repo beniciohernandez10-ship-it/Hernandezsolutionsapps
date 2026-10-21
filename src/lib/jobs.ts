@@ -3,6 +3,7 @@ import { enqueue } from "./jobs-queue";
 import { log, errorSummary } from "./log";
 import { ProviderError } from "./integrations/http";
 import { syncIntuneDevices } from "./integrations/graph";
+import { syncLicenses } from "./integrations/licenses";
 import { syncAteraAgents, verifyAteraMapping } from "./integrations/atera";
 import { purgeExpiredAuthState } from "./auth/session";
 import { fanOutChangeEvent, fanOutTicketEvent, notifySlaEvents, sendNotificationEmail } from "./notify/service";
@@ -37,6 +38,7 @@ type Handler = (job: Job) => Promise<unknown>;
 
 const handlers = new Map<string, Handler>([
   ["intune.sync_devices", (j) => syncIntuneDevices(j.customer_id!)],
+  ["m365.sync_licenses", (j) => syncLicenses(j.customer_id!)],
   ["atera.verify_mapping", (j) => verifyAteraMapping(j.customer_id!, String(j.payload.connectionId))],
   ["atera.sync_agents", (j) => syncAteraAgents(j.customer_id!)],
   ["notify.ticket", (j) => fanOutTicketEvent(j.payload)],
@@ -134,7 +136,11 @@ export async function scheduleSyncs(now = new Date()) {
          join entra_directories d on d.id = ced.directory_id join customers c on c.id = ced.customer_id
         where ced.inventory_enabled and d.inventory_consent_at is not null and c.status = 'active'`,
     );
-    for (const r of intune.rows) await enqueue(tx, "intune.sync_devices", r.customer_id, {}, `intune.sync:${r.customer_id}:${bucket}`);
+    for (const r of intune.rows) {
+      await enqueue(tx, "intune.sync_devices", r.customer_id, {}, `intune.sync:${r.customer_id}:${bucket}`);
+      // Same consent and directory as the device inventory; licenses change slowly, so once a day.
+      await enqueue(tx, "m365.sync_licenses", r.customer_id, {}, `m365.licenses:${r.customer_id}:${bucket.slice(0, 10)}`);
+    }
     const atera = await tx.query<{ customer_id: string }>(
       `select distinct m.customer_id from customer_atera_mappings m join atera_connections c on c.id = m.connection_id
          join customers cu on cu.id = m.customer_id where m.verified_at is not null and c.enabled and cu.status = 'active'`,

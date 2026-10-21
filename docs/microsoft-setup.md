@@ -31,7 +31,7 @@ Entra admin center → Identity → Applications → App registrations → New r
 ## 2. Inventory registration (Intune via Graph)
 
 - **Supported account types:** multitenant.
-- **API permissions:** Microsoft Graph → **Application** → `DeviceManagementManagedDevices.Read.All` and `User.Read.All`. Do not add `ReadWrite`, `PrivilegedOperations`, or any wipe/retire/script permission.
+- **API permissions:** Microsoft Graph → **Application** → `DeviceManagementManagedDevices.Read.All`, `User.Read.All` and `Organization.Read.All` (Microsoft 365 license counts on the Devices page; read-only). Do not add `ReadWrite`, `PrivilegedOperations`, or any wipe/retire/script permission.
 - `User.Read.All` lets technicians pick a device's primary user from the customer's directory in the [device registry](asset-tags.md). The portal reads only `id`, `displayName`, `userPrincipalName`, `mail` and `accountEnabled`.
 - Create a client secret → Vercel `GRAPH_CLIENT_SECRET`; set `GRAPH_CLIENT_ID`.
 

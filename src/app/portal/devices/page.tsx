@@ -6,7 +6,8 @@ import { Time } from "@/components/time";
 import { PageTransition } from "@/components/page-transition";
 import { IconDevice, IconPlus } from "@/components/icons";
 import Link from "next/link";
-import { listAssets, registrableCustomers } from "@/lib/assets/service";
+import { listAssets, registrableCustomers, warrantyExpiring } from "@/lib/assets/service";
+import { listLicenses } from "@/lib/integrations/licenses";
 import { KIND_LABEL } from "@/lib/assets/naming";
 
 export const metadata = { title: "Devices" };
@@ -30,7 +31,7 @@ export default async function DevicesPage() {
     throw e;
   }
   const multi = new Set(data.devices.map((d) => d.customerId)).size > 1 || principal.memberships.length > 1;
-  const assets = await listAssets(principal);
+  const [assets, warranties, licenses] = await Promise.all([listAssets(principal), warrantyExpiring(principal), listLicenses(principal)]);
   const canRegister = registrableCustomers(principal).length > 0;
   return (
     <PageTransition>
@@ -88,6 +89,78 @@ export default async function DevicesPage() {
           </div>
         )}
       </section>
+      {warranties.length > 0 && (
+        <section className="stack" aria-labelledby="war-h">
+          <h2 id="war-h">Warranties ending in the next 60 days</h2>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Device</th>
+                  {multi && <th scope="col">Organization</th>}
+                  <th scope="col">Model</th>
+                  <th scope="col">Warranty ends</th>
+                </tr>
+              </thead>
+              <tbody>
+                {warranties.map((w) => (
+                  <tr key={w.id}>
+                    <th scope="row"><Link href={`/portal/devices/${w.id}`}>{w.tag}</Link></th>
+                    {multi && <td>{w.customerName}</td>}
+                    <td>{[w.manufacturer, w.model].filter(Boolean).join(" ") || "—"}</td>
+                    <td>{w.warrantyExpires}{w.warrantyExpires! < new Date().toISOString().slice(0, 10) ? " (expired)" : ""}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+      {licenses.some((l) => l.rows.length || l.sync) && (
+        <section className="stack" aria-labelledby="lic-h">
+          <h2 id="lic-h">Microsoft 365 licenses</h2>
+          {licenses
+            .filter((l) => l.rows.length || l.sync)
+            .map((l) => (
+              <div key={l.customerId} className="stack">
+                {multi && <h3 className="eyebrow">{l.customerName}</h3>}
+                {l.rows.length > 0 && (
+                  <div className="table-wrap">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th scope="col">License</th>
+                          <th scope="col">Purchased</th>
+                          <th scope="col">Assigned</th>
+                          <th scope="col">Unassigned</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {l.rows.map((r) => (
+                          <tr key={r.skuId}>
+                            <th scope="row">
+                              {r.name ?? r.skuPartNumber}
+                              {r.name && <span className="subtle"> · {r.skuPartNumber}</span>}
+                            </th>
+                            <td>{r.enabled}{r.warning ? ` (+${r.warning} expiring)` : ""}</td>
+                            <td>{r.consumed}</td>
+                            <td>{r.available}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                {l.sync && (
+                  <p className="subtle">
+                    Read from Microsoft 365{l.sync.lastSuccessAt ? <> · updated <Time iso={l.sync.lastSuccessAt} /></> : ""}. Unassigned licenses may be ones you&apos;re paying for but not using.
+                    {l.sync.lastError && l.sync.status !== "synchronized" && <> {l.sync.lastError}</>}
+                  </p>
+                )}
+              </div>
+            ))}
+        </section>
+      )}
       <section className="stack" aria-labelledby="sync-h">
         <h2 id="sync-h">Synchronization</h2>
         {data.sync.length === 0 ? (
@@ -99,7 +172,7 @@ export default async function DevicesPage() {
               return (
                 <div key={`${s.customerId}-${s.provider}-${s.resource}`} className="card tight stack">
                   <div className="spread">
-                    <strong>{s.provider === "intune" ? "Microsoft Intune" : "Atera"}</strong>
+                    <strong>{s.provider === "intune" ? "Microsoft Intune" : s.provider === "microsoft365" ? "Microsoft 365 licenses" : "Atera"}</strong>
                     <SyncBadge status={s.status} />
                   </div>
                   {multi && <span className="subtle">{s.customerName}</span>}

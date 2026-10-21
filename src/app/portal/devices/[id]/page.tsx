@@ -109,6 +109,30 @@ export default async function AssetPage({ params, searchParams }: { params: Prom
                   <span className="subtle">No PC named {a.tag} has reported in yet</span>
                 )}
               </dd>
+              {(a.manufacturer || a.model) && (
+                <>
+                  <dt>Model</dt>
+                  <dd>{[a.manufacturer, a.model].filter(Boolean).join(" ")}</dd>
+                </>
+              )}
+              {a.serialNumber && (
+                <>
+                  <dt>Serial</dt>
+                  <dd className="mono-text">{a.serialNumber}</dd>
+                </>
+              )}
+              {a.purchaseDate && (
+                <>
+                  <dt>Purchased</dt>
+                  <dd>{a.purchaseDate}</dd>
+                </>
+              )}
+              {a.warrantyExpires && (
+                <>
+                  <dt>Warranty ends</dt>
+                  <dd>{a.warrantyExpires}{a.warrantyExpires < new Date().toISOString().slice(0, 10) ? " (expired)" : ""}</dd>
+                </>
+              )}
               <dt>Registered</dt>
               <dd><Time iso={a.createdAt} />{a.createdByName && <> by {a.createdByName}</>}</dd>
             </dl>
@@ -123,6 +147,7 @@ export default async function AssetPage({ params, searchParams }: { params: Prom
               location={a.location ?? ""}
               notes={a.notes ?? ""}
               primaryUser={a.primaryUserName ? { name: a.primaryUserName, upn: a.primaryUserUpn } : null}
+              hardware={{ manufacturer: a.manufacturer, model: a.model, serialNumber: a.serialNumber, purchaseDate: a.purchaseDate, warrantyExpires: a.warrantyExpires }}
             />
           )}
         </aside>

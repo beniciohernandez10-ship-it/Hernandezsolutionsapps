@@ -42,12 +42,12 @@ export interface ManagedDevice {
   lastSyncAt: string | null;
 }
 
-interface GraphDeps {
+export interface GraphDeps {
   fetchImpl?: typeof fetch;
   sleep?: (ms: number) => Promise<void>;
 }
 
-function graphHost() {
+export function graphHost() {
   return new URL(config().graph.baseUrl).hostname.toLowerCase();
 }
 function loginHost() {

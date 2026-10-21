@@ -14,12 +14,22 @@ export const primaryUserSchema = z.discriminatedUnion("source", [
   z.object({ source: z.literal("portal"), userId: z.uuid() }),
 ]);
 
+/** Hardware details. Dates are YYYY-MM-DD; empty strings clear a value. */
+export const hardwareSchema = z.object({
+  manufacturer: text(80).optional(),
+  model: text(120).optional(),
+  serialNumber: text(80).optional(),
+  purchaseDate: z.union([z.iso.date(), z.literal("")]).optional(),
+  warrantyExpires: z.union([z.iso.date(), z.literal("")]).optional(),
+});
+
 export const registerAssetSchema = z.object({
   customerId: z.uuid(),
   kind: z.enum(ASSET_KINDS),
   primaryUser: primaryUserSchema,
   location: text(120).optional().default(""),
   notes: text(1000).optional().default(""),
+  hardware: hardwareSchema.optional(),
 });
 
 export const updateAssetSchema = z.object({
@@ -28,6 +38,7 @@ export const updateAssetSchema = z.object({
   location: text(120).optional(),
   notes: text(1000).optional(),
   status: z.enum(["active", "retired"]).optional(),
+  hardware: hardwareSchema.optional(),
 });
 
 export const directorySearchSchema = z.object({

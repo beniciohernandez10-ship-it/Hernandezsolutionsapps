@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch, ApiError, fieldErrors } from "@/components/client-api";
+import { HardwareFields, hardwareFrom } from "@/components/hardware-fields";
 import { PrimaryUserPicker, type PrimaryUserRef } from "@/components/primary-user-picker";
 import { IconAlert } from "@/components/icons";
 import { ASSET_KINDS, KIND_LABEL, KIND_PREFIX } from "@/lib/assets/naming";
@@ -27,7 +28,7 @@ export function RegisterDeviceForm({ orgs }: { orgs: { id: string; name: string 
     try {
       const r = await apiFetch<{ id: string; tag: string }>("/api/assets", {
         method: "POST",
-        body: { customerId, kind, primaryUser: user, location: String(fd.get("location") ?? ""), notes: String(fd.get("notes") ?? "") },
+        body: { customerId, kind, primaryUser: user, location: String(fd.get("location") ?? ""), notes: String(fd.get("notes") ?? ""), hardware: hardwareFrom(fd) },
       });
       router.push(`/portal/devices/${r.id}?created=1`, { transitionTypes: ["nav-forward"] } as never);
     } catch (err) {
@@ -80,6 +81,9 @@ export function RegisterDeviceForm({ orgs }: { orgs: { id: string; name: string 
         <label htmlFor="location">Location</label>
         <span className="hint" id="location-hint">Office, floor, room or desk. For example: Main office, Front desk.</span>
         <input id="location" name="location" className="input" maxLength={120} autoComplete="off" aria-describedby="location-hint" />
+      </div>
+      <div className="field">
+        <HardwareFields />
       </div>
       <div className="field">
         <label htmlFor="notes">Notes (optional)</label>

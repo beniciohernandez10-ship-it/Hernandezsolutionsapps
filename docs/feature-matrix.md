@@ -69,5 +69,7 @@
 | Status page | Active and recent incidents, planned maintenance, portal-wide banner | Implemented | /portal/status; maintenance via a DB function exposing no plans |
 | Problem management | Problems (investigating → known error → resolved), root cause, workaround, permanent fix, linked requests | Implemented | Technicians only (RLS) |
 | | Repeat-issue detection; workaround drafted as a knowledge article | Implemented | /portal/problems |
+| Assets / CMDB | Hardware details (manufacturer, model, serial, purchase, warranty), change history, warranties-ending list | Implemented | Devices page |
+| | Microsoft 365 license inventory (purchased / assigned / unassigned per SKU) | Implemented (mocked) | Read-only Graph subscribedSkus; needs Organization.Read.All consent |
 | Email intake | Verified Resend webhook, reply-by-email via one-time reply addresses | Implemented | Off until inbound domain + webhook secret are set |
 | | Review inbox for unmatched email, convert to ticket | Implemented | Service managers only |

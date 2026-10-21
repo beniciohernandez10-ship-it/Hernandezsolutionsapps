@@ -11,6 +11,16 @@ import { directorySearchSchema, registerAssetSchema, updateAssetSchema } from ".
 import type { z } from "zod";
 
 const iso = (v: unknown) => (v ? new Date(v as string).toISOString() : null);
+/** A DATE column as YYYY-MM-DD (drivers return Date objects or strings). */
+const dateOnly = (v: unknown) => (v ? (v instanceof Date ? v.toISOString().slice(0, 10) : String(v).slice(0, 10)) : null);
+
+const HW_COLUMNS = [
+  ["manufacturer", "manufacturer"],
+  ["model", "model"],
+  ["serialNumber", "serial_number"],
+  ["purchaseDate", "purchase_date"],
+  ["warrantyExpires", "warranty_expires"],
+] as const;
 
 export interface AssetSummary {
   id: string;
@@ -25,6 +35,11 @@ export interface AssetSummary {
   primaryUserSource: "none" | "directory" | "portal";
   location: string | null;
   updatedAt: string;
+  manufacturer: string | null;
+  model: string | null;
+  serialNumber: string | null;
+  purchaseDate: string | null;
+  warrantyExpires: string | null;
   /** Provider device (Intune/Atera) currently reporting this name, if any. */
   linkedDevice: { id: string; source: string; complianceState: string | null; lastSyncAt: string | null } | null;
 }
@@ -64,6 +79,11 @@ function toSummary(r: Record<string, unknown>): AssetSummary {
     primaryUserSource: r.primary_user_source as AssetSummary["primaryUserSource"],
     location: (r.location as string) || null,
     updatedAt: iso(r.updated_at)!,
+    manufacturer: (r.manufacturer as string) || null,
+    model: (r.model as string) || null,
+    serialNumber: (r.serial_number as string) || null,
+    purchaseDate: dateOnly(r.purchase_date),
+    warrantyExpires: dateOnly(r.warranty_expires),
     linkedDevice: r.device_id
       ? {
           id: r.device_id as string,
@@ -274,11 +294,14 @@ export async function registerAsset(p: Principal, raw: unknown) {
     const ins = await tx.query<{ id: string }>(
       `insert into assets (customer_id, kind, number, tag, short_code, primary_user_source, primary_user_tenant_id,
                            primary_user_object_id, primary_user_portal_id, primary_user_name, primary_user_upn,
-                           location, notes, created_by)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, nullif($12, ''), nullif($13, ''), $14) returning id`,
+                           location, notes, created_by, manufacturer, model, serial_number, purchase_date, warranty_expires)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, nullif($12, ''), nullif($13, ''), $14,
+               nullif($15, ''), nullif($16, ''), nullif($17, ''), nullif($18, '')::date, nullif($19, '')::date) returning id`,
       [
         input.customerId, input.kind, n, tag, shortCode, user.source, user.tenantId, user.objectId, user.portalUserId,
         user.name, user.upn, input.location, input.notes, p.userId,
+        input.hardware?.manufacturer ?? "", input.hardware?.model ?? "", input.hardware?.serialNumber ?? "",
+        input.hardware?.purchaseDate ?? "", input.hardware?.warrantyExpires ?? "",
       ],
     );
     const id = ins.rows[0].id;
@@ -330,6 +353,20 @@ export async function updateAsset(p: Principal, id: string, raw: unknown) {
       set("notes", input.notes || null);
       await event(tx, p, id, customerId, "notes_changed", {});
     }
+    if (input.hardware) {
+      const changed: string[] = [];
+      for (const [key, col] of HW_COLUMNS) {
+        const v = input.hardware[key];
+        if (v === undefined) continue;
+        const next = v || null;
+        const prev = col === "purchase_date" || col === "warranty_expires" ? dateOnly(cur[col]) : ((cur[col] as string) ?? null);
+        if (next !== prev) {
+          set(col, next);
+          changed.push(key);
+        }
+      }
+      if (changed.length) await event(tx, p, id, customerId, "hardware_changed", { fields: changed });
+    }
     if (input.status && input.status !== cur.status) {
       set("status", input.status);
       set("retired_at", input.status === "retired" ? new Date().toISOString() : null);
@@ -348,4 +385,19 @@ export async function updateAsset(p: Principal, id: string, raw: unknown) {
 /** Organizations where the principal may register devices. */
 export function registrableCustomers(p: Principal) {
   return p.memberships.filter((m) => STAFF_ROLES.includes(m.role)).map((m) => ({ id: m.customerId, name: m.customerName }));
+}
+
+/** Active assets whose warranty ends within the next `days` days, or ended recently (org view). */
+export async function warrantyExpiring(p: Principal, days = 60) {
+  const targets = p.memberships.filter((m) => canSeeOrgFor(p, m.customerId)).map((m) => m.customerId);
+  if (!targets.length) return [];
+  return withUser(p.userId, async (tx) => {
+    const r = await tx.query(
+      `${SELECT} where a.customer_id = any($1::uuid[]) and a.status = 'active' and a.warranty_expires is not null
+          and a.warranty_expires <= current_date + make_interval(days => $2::int) and a.warranty_expires >= current_date - 30
+        order by a.warranty_expires`,
+      [targets, days],
+    );
+    return r.rows.map(toSummary);
+  });
 }
