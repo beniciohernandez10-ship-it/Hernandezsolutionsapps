@@ -57,5 +57,8 @@
 | Knowledge base | Articles for all clients, one client, or technicians; drafts | Implemented | 7 starter articles from the public Help Center |
 | | Full-text search, suggestions while typing a request, helpful votes, views | Implemented | Rendered from a Markdown subset, never raw HTML |
 | Lifecycle | Resolution details required; auto-close after CLOSE_AFTER_DAYS (5) | Implemented | Customers can't reopen closed tickets |
+| Productivity | Saved replies with fill-ins (shared or per client) | Implemented | Reply box → Insert a saved reply; /portal/replies |
+| | Merge duplicates, parent/child requests | Implemented | Same-customer only, enforced by composite keys |
+| | Automatic assignment rules | Implemented | Administration → Assignment rules; applied by a DB function on create |
 | Email intake | Verified Resend webhook, reply-by-email via one-time reply addresses | Implemented | Off until inbound domain + webhook secret are set |
 | | Review inbox for unmatched email, convert to ticket | Implemented | Service managers only |

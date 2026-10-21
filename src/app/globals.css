@@ -1437,3 +1437,8 @@ label.btn[aria-disabled="true"] {
   margin: 0;
   padding-left: 1.2rem;
 }
+
+.input.input-number {
+  width: 8rem;
+  flex: none;
+}

@@ -11,6 +11,8 @@ import { config } from "@/lib/config";
 import { attachmentsEnabled } from "@/lib/attachments/storage";
 import { AttachmentPanel } from "./attachments";
 import { ApprovalCard, TaskList } from "./request";
+import { RelatedCard } from "./related";
+import { listCanned } from "@/lib/productivity/service";
 import { Time } from "@/components/time";
 import { PageTransition } from "@/components/page-transition";
 import { IconBack, IconCheck } from "@/components/icons";
@@ -23,6 +25,11 @@ const EVENT_TEXT: Record<string, (from: string | null, to: string | null) => str
   status_changed: (f, t) => `changed status from ${STATUS_LABEL[f as Status] ?? f} to ${STATUS_LABEL[t as Status] ?? t}`,
   reopened: () => "reopened this request",
   closed: () => "closed this request automatically",
+  merged: (_f, t) => `merged this request into ${t}`,
+  merged_from: (_f, t) => `merged ${t} into this request`,
+  parent_set: (_f, t) => `linked this request to ${t}`,
+  parent_cleared: () => "unlinked this request from its parent",
+  auto_assigned: (_f, t) => `assigned this request by rule "${t}"`,
   assigned: (_f, t) => (t ? "changed the assignee" : "removed the assignee"),
   priority_changed: (f, t) => `changed priority from ${f} to ${t}`,
   device_linked: () => "linked a device",
@@ -53,10 +60,11 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
     throw e;
   }
   const v = t.viewer;
-  const [staff, queues, devices] = await Promise.all([
+  const [staff, queues, devices, canned] = await Promise.all([
     v.canAssign ? listAssignableStaff(principal, t.customerId) : Promise.resolve([]),
     v.canAssign ? listQueues(principal) : Promise.resolve([]),
     v.canLinkDevices ? listDevices(principal, t.customerId).then((d) => d.devices) : Promise.resolve([]),
+    v.isStaff ? listCanned(principal, t.customerId) : Promise.resolve([]),
   ]);
   const linked = new Set(t.devices.map((d) => d.id));
   // Viewing a ticket clears its notifications.
@@ -160,7 +168,7 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
                   </li>
                 ) : (
                   <li key={`${item.e.kind}-${item.at}`} className="event">
-                    {item.e.actorName ?? (item.e.kind.startsWith("sla_") ? "The IT Center" : "Someone")} {EVENT_TEXT[item.e.kind]?.(item.e.fromValue, item.e.toValue) ?? item.e.kind} · <Time iso={item.at} />
+                    {item.e.actorName ?? (item.e.kind.startsWith("sla_") || item.e.kind === "auto_assigned" || item.e.kind === "closed" ? "The IT Center" : "Someone")} {EVENT_TEXT[item.e.kind]?.(item.e.fromValue, item.e.toValue) ?? item.e.kind} · <Time iso={item.at} />
                   </li>
                 ),
               )}
@@ -168,7 +176,14 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
           </section>
 
           {v.canReply ? (
-            <ReplyBox ticketId={t.id} canInternal={v.canAddInternalNote} resolved={t.status === "resolved"} closed={t.status === "closed"} />
+            <ReplyBox
+              ticketId={t.id}
+              canInternal={v.canAddInternalNote}
+              resolved={t.status === "resolved"}
+              closed={t.status === "closed"}
+              canned={canned}
+              fill={{ requesterName: t.requesterName, ticketNumber: t.number, technicianName: principal.displayName }}
+            />
           ) : (
             <p className="alert alert-warning">
               <span>
@@ -229,6 +244,7 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
               </dl>
             </section>
           )}
+          <RelatedCard ticketId={t.id} related={t.related} staff={v.isStaff} mergeable={!t.related.mergedInto && t.status !== "closed"} />
           {t.kind === "request" && <TaskList ticketId={t.id} tasks={t.tasks} canEdit={v.isStaff && t.approvalStatus !== "pending" && t.approvalStatus !== "rejected"} />}
           <AttachmentPanel
             ticketId={t.id}

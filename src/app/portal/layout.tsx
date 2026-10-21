@@ -65,6 +65,7 @@ export default async function PortalLayout({ children }: { children: React.React
                 <hr />
                 <Link href="/portal/notifications">Notifications{unread ? ` (${unread})` : ""}</Link>
                 <Link href="/portal/settings">Email settings</Link>
+                {caps.staff && <Link href="/portal/replies">Saved replies</Link>}
                 <a href={website}>Back to thehernandezsolutions.com</a>
                 <SignOutButton className="btn btn-ghost" />
                 <p className="subtle">Signed in as {principal.displayName}</p>

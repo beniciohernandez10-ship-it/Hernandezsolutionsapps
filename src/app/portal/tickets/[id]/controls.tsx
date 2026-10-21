@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { apiFetch, ApiError } from "@/components/client-api";
 import { PRIORITIES, PRIORITY_LABEL, STATUS_LABEL, type Status } from "@/lib/tickets/schemas";
 import { IconAlert, IconCheck, IconLock } from "@/components/icons";
+import { fillPlaceholders } from "@/lib/productivity/placeholders";
 
 function useMutation() {
   const router = useRouter();
@@ -55,7 +56,22 @@ function Feedback({ m }: { m: ReturnType<typeof useMutation> }) {
   );
 }
 
-export function ReplyBox({ ticketId, canInternal, resolved, closed = false }: { ticketId: string; canInternal: boolean; resolved: boolean; closed?: boolean }) {
+export function ReplyBox({
+  ticketId,
+  canInternal,
+  resolved,
+  closed = false,
+  canned = [],
+  fill,
+}: {
+  ticketId: string;
+  canInternal: boolean;
+  resolved: boolean;
+  closed?: boolean;
+  /** Staff: saved replies to insert. */
+  canned?: { id: string; title: string; body: string }[];
+  fill?: { requesterName: string; ticketNumber: number; technicianName: string };
+}) {
   const m = useMutation();
   const [body, setBody] = useState("");
   const [visibility, setVisibility] = useState<"public" | "internal">("public");
@@ -87,6 +103,31 @@ export function ReplyBox({ ticketId, canInternal, resolved, closed = false }: { 
       {internal && <p className="subtle">Only technicians assigned to this customer can see private notes. The customer is never shown this.</p>}
       {!canInternal && resolved && <p className="subtle">This request is resolved. Replying will reopen it.</p>}
       {canInternal && closed && <p className="subtle">This request is closed. Replies and notes won&apos;t reopen it.</p>}
+      {canned.length > 0 && fill && (
+        <div className="field">
+          <div className="spread">
+            <label htmlFor="canned">Insert a saved reply</label>
+            <a className="subtle" href="/portal/replies">Manage</a>
+          </div>
+          <select
+            id="canned"
+            className="select"
+            value=""
+            onChange={(e) => {
+              const c = canned.find((x) => x.id === e.target.value);
+              if (c) setBody((b) => (b.trim() ? `${b.trimEnd()}\n\n` : "") + fillPlaceholders(c.body, fill));
+            }}
+          >
+            <option value="">Choose…</option>
+            {canned.map((c) => (
+              <option key={c.id} value={c.id}>{c.title}</option>
+            ))}
+          </select>
+        </div>
+      )}
+      {canned.length === 0 && canInternal && (
+        <a className="subtle" href="/portal/replies">Create saved replies</a>
+      )}
       <label htmlFor="reply" className="sr-only">{internal ? "Private note" : "Reply"}</label>
       <textarea id="reply" className="textarea" value={body} onChange={(e) => setBody(e.target.value)} maxLength={20000} placeholder={internal ? "Visible to technicians only" : "Write a reply"} />
       <Feedback m={m} />

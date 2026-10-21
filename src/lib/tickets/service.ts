@@ -17,6 +17,7 @@ import { emitTicketEvent } from "../notify/service";
 import { applySlaOnCreate, applySlaTransition, slaBadge, slaSummary, type TicketSla } from "../sla/service";
 import { listAttachments, type AttachmentInfo } from "../attachments/service";
 import { approvalFor, listTasks, type ApprovalInfo, type TicketTask } from "../catalog/read";
+import { relatedTickets, type RelatedTickets } from "../productivity/service";
 import {
   addMessageSchema,
   createTicketSchema,
@@ -76,6 +77,8 @@ export interface TicketDetail extends TicketSummary {
   requestData: { label: string; value: string }[] | null;
   approval: ApprovalInfo | null;
   tasks: TicketTask[];
+  /** Parent, child and merged-into requests the viewer can see. */
+  related: RelatedTickets;
   /** Staff only. */
   slaDetail: TicketSla | null;
   viewer: {
@@ -288,6 +291,7 @@ export async function getTicket(p: Principal, id: string): Promise<TicketDetail>
     const isRequest = row.kind === "request";
     const approval = isRequest ? await approvalFor(tx, p, id, customerId) : null;
     const tasks = isRequest ? await listTasks(tx, id) : [];
+    const related = await relatedTickets(tx, id);
     const devices = canSeeOrgFor(p, customerId)
       ? await tx.query(
           `select d.id, d.name, d.operating_system, d.compliance_state
@@ -334,6 +338,7 @@ export async function getTicket(p: Principal, id: string): Promise<TicketDetail>
       requestData: (row.request_data as { label: string; value: string }[]) ?? null,
       approval,
       tasks,
+      related,
       slaDetail: staff ? slaSummary(row, (row.sla_policy_name as string) ?? null) : null,
       viewer: {
         role: roleFor(p, customerId)!,
@@ -426,6 +431,8 @@ export async function createTicket(p: Principal, raw: unknown, idempotencyKey: s
     }
     await applySlaOnCreate(tx, ticket.id);
     if (opts.afterInsert) await opts.afterInsert(tx, ticket, customerId);
+    // Automatic assignment (Administration → Assignment rules); a no-op when nothing matches.
+    await tx.query("select app_apply_assignment_rules($1)", [ticket.id]);
     if (opts.notify !== false) await emitTicketEvent(tx, ticket.id, "created");
     await audit(tx, p, "ticket.create", customerId, "ticket", ticket.id, { number: ticket.number, priority: input.priority, source: opts.source ?? "portal" });
     await tx.query(
