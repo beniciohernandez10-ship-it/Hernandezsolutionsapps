@@ -37,6 +37,7 @@ export default async function AdminPage() {
           <Link className="btn" href="/portal/admin/catalog" transitionTypes={["nav-forward"]}>Service catalog</Link>
           <Link className="btn" href="/portal/admin/sla" transitionTypes={["nav-forward"]}>Service levels</Link>
           <Link className="btn" href="/portal/admin/rules" transitionTypes={["nav-forward"]}>Assignment rules</Link>
+          <Link className="btn" href="/portal/admin/audit" transitionTypes={["nav-forward"]}>Audit log</Link>
         </div>
       </div>
       <p className="subtle">Changes here are audited. Sensitive changes ask you to sign in again if your last sign-in was a while ago.</p>

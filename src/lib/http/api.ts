@@ -9,6 +9,7 @@ import { log, errorSummary } from "../log";
 import { readSession, sessionCookieName, type SessionRecord } from "../auth/session";
 import { safeEqual } from "../auth/crypto";
 import { rateLimit } from "../ratelimit";
+import { shipAuditAfterResponse } from "../audit/store";
 
 const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
@@ -65,6 +66,7 @@ export function jsonError(err: unknown, requestId: string) {
 }
 
 async function recordDenial(principal: Principal | null, req: NextRequest, err: AppError, requestId: string) {
+  shipAuditAfterResponse();
   log.warn("authz.denied", { requestId, userId: principal?.userId, path: req.nextUrl.pathname, method: req.method, code: err.code });
   try {
     await asSystem((tx) =>
@@ -89,6 +91,8 @@ export function api(handler: Handler, opts: Options = {}) {
   return async (req: NextRequest, ctx: { params: Promise<Record<string, string>> }) => {
     const requestId = randomUUID();
     let principal: Principal | null = null;
+    // Changes write audit events; copy them to the off-site store once the response is sent.
+    if (MUTATING.has(req.method)) shipAuditAfterResponse();
     try {
       const token = req.cookies.get(sessionCookieName())?.value;
       const session = await readSession(token);

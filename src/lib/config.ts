@@ -42,6 +42,8 @@ export interface AppConfig {
   attachments: { maxUploadBytes: number; maxEmailBytes: number };
   /** Claude (Anthropic API). Without a key the AI assistant is hidden everywhere. */
   ai: { apiKey?: string; model: string };
+  /** Off-site, append-only audit store (docs/audit-log.md). The URL uses the audit_writer login, never the owner. */
+  audit: { databaseUrl?: string };
   cronSecret?: string;
 }
 
@@ -98,6 +100,7 @@ export function loadConfig(env: Env = process.env): AppConfig {
     // Uploads pass through a Vercel Function (4.5 MB request limit); email attachments are fetched server-side.
     attachments: { maxUploadBytes: 4 * 1024 * 1024, maxEmailBytes: 10 * 1024 * 1024 },
     ai: { apiKey: env.ANTHROPIC_API_KEY || undefined, model: env.AI_MODEL || "claude-opus-5-5" },
+    audit: { databaseUrl: env.AUDIT_DATABASE_URL || undefined },
     cronSecret: env.CRON_SECRET || undefined,
   };
 }

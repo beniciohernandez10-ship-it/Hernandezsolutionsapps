@@ -60,10 +60,16 @@ Service-manager-only features (SLA policies, reports, queue management) are not 
 - Provider error text is shown only to staff.
 - AI assistant (Anthropic API): off per customer until an operator turns it on; only public conversation and client-visible help articles are sent, and only when a person presses an assistant button. Output is advisory and rendered as text. Usage is logged without content. See `docs/ai-assistant.md`.
 
+## Audit trail
+
+- Audit events are written in the same transaction as the change, and a trigger blocks deleting or rewriting them.
+- Each event is also copied to a separate, append-only PostgreSQL database with a SHA-256 hash chain. The portal logs in there as `audit_writer`, which can append but not read, change or delete. A checkpoint of the chain head is kept in the portal database and compared daily. See `docs/audit-log.md`.
+
 ## Secrets
 
 - Stored in Vercel → Project → Settings → Environment Variables (per environment). Optionally reference Azure Key Vault from there. Never paste secrets into chat, tickets, or the repo.
 - Database stores only the **name** of each Atera API-key variable.
+- The audit store owner login stays in Neon only; Vercel holds just `AUDIT_DATABASE_URL` (audit_writer).
 - `ANTHROPIC_API_KEY` (AI assistant) is set only in Vercel; set a spend limit on the key in the Anthropic Console.
 - Rotation: create the new Entra client secret / Atera key, set it in Vercel for each environment, redeploy, confirm sign-in and a sync run, then delete the old secret. Rotate at least yearly and immediately on suspected exposure. Rotating `CRON_SECRET` only requires updating the variable.
 

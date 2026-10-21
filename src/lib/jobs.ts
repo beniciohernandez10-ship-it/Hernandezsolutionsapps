@@ -10,6 +10,7 @@ import { fanOutChangeEvent, fanOutTicketEvent, notifySlaEvents, sendNotification
 import { sweepSla } from "./sla/service";
 import { autoCloseResolved } from "./tickets/service";
 import { ingestInboundEmail } from "./email/inbound";
+import { shipAuditEvents, verifyAuditStore } from "./audit/store";
 
 export { enqueue };
 
@@ -171,6 +172,7 @@ export async function drainSoon(opts: { sweep?: boolean } = {}) {
   try {
     if (opts.sweep) await scheduleSlaSweep();
     await processJobs({ limit: 20, deadlineMs: 8_000 });
+    await shipAuditEvents({ deadlineMs: 4_000 });
   } catch (err) {
     log.error("jobs.drain_failed", { error: errorSummary(err) });
   }
@@ -180,6 +182,9 @@ export async function cronTick() {
   await scheduleSyncs();
   await scheduleSlaSweep();
   const result = await processJobs();
+  // Catch up on anything not sent after a request, then check the off-site chain once a day.
+  await shipAuditEvents({ deadlineMs: 10_000 });
+  await verifyAuditStore().catch(() => null);
   try {
     await purgeExpiredAuthState();
     await housekeeping();
