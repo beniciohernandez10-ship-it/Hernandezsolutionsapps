@@ -1,5 +1,6 @@
 import { openDatabase } from "../src/lib/db";
 import { migrate } from "../src/lib/db/migrate";
+import { bootstrapFromEnv, bootstrapOperator } from "../src/lib/admin/bootstrap";
 
 // Runs before `next build` on Vercel (vercel.json buildCommand). Only the
 // production build migrates, so preview builds never change the production
@@ -11,5 +12,8 @@ if (process.env.VERCEL_ENV !== "production") {
   const database = await openDatabase();
   const ran = await migrate(database, undefined, (m) => console.log(m));
   console.log(ran.length ? `Applied ${ran.length} migration(s).` : "Database is up to date.");
+  // First-operator bootstrap (docs/roles-and-onboarding.md). A no-op once an operator exists.
+  const boot = bootstrapFromEnv(process.env);
+  if (boot) console.log(`Operator bootstrap: ${await bootstrapOperator(database, boot)}.`);
   await database.close();
 }

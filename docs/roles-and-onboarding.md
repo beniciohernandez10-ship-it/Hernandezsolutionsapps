@@ -4,7 +4,19 @@ All steps are done by a **platform operator** in *Administration* (`/portal/admi
 
 ## Bootstrap the first operator (one time per environment)
 
-There is deliberately no self-service way to become an operator. After the first deploy, run once against the environment's database (from a trusted machine, with that environment's `DATABASE_URL`):
+There is deliberately no self-service way to become an operator.
+
+**Easiest (Vercel):** set these Production variables, redeploy, check the build log for `Operator bootstrap: created`, then delete them. The step only runs while no operator exists, so it can't add a second administrator later.
+
+| Variable | Value |
+| --- | --- |
+| `BOOTSTRAP_HS_TENANT_ID` | Hernandez Solutions tenant ID |
+| `BOOTSTRAP_HS_TENANT_NAME` | e.g. `Hernandez Solutions` |
+| `BOOTSTRAP_OPERATOR_OBJECT_ID` | Entra admin center → Users → the person → Object ID |
+| `BOOTSTRAP_OPERATOR_EMAIL` | Their user principal name |
+| `BOOTSTRAP_OPERATOR_NAME` | Display name |
+
+**Or by hand**, once against the environment's database (from a trusted machine, with that environment's `DATABASE_URL`):
 
 ```sql
 -- 1. The Hernandez Solutions home directory
