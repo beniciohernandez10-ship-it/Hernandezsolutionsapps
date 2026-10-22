@@ -27,6 +27,11 @@ Covering all three needs both databases compromised at once. Keep the audit stor
 
 ## Setting it up (once)
 
+**Current setup (2026-10-21):** Neon database `hernandez-audit-db` (iad1), created through the Vercel Neon integration and attached only to the otherwise empty Vercel project `hernandez-audit-store`, so its owner credentials are not in the portal project. The portal has only `AUDIT_DATABASE_URL` (audit_writer, pooled host). To get the owner string again: Vercel → hernandez-audit-store → Settings → Environment Variables (`DATABASE_URL_UNPOOLED`).
+
+The steps below are for setting up from scratch.
+
+
 1. **Create the database.** Sign in at console.neon.tech with an account that has two-step sign-in. Create a **new project** (not a branch of the portal's): name `hernandez-audit`, region AWS US East (N. Virginia) to match the portal, Postgres 17. The free plan is enough.
 2. **Give the setup script the owner connection string.** In the project's dashboard, choose **Connect** and copy the connection string. In `hernandez-it-center/`, create a file named `.env.audit.local` (git ignores it) containing:
    ```
