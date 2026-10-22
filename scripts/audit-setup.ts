@@ -10,6 +10,7 @@ import { migrate } from "../src/lib/db/migrate";
  *
  *   1. Put the store owner's connection string in .env.audit.local:
  *        AUDIT_OWNER_DATABASE_URL=postgresql://...
+ *      Optionally AUDIT_WRITER_BASE_URL=<the pooled connection string> for the portal.
  *   2. npm run audit:setup
  *
  * It applies db/audit to that database, gives the audit_writer login a new
@@ -42,7 +43,8 @@ await ownerDb.exec(stmt);
 await ownerDb.close();
 console.log("audit_writer login enabled with a new password.");
 
-const writerUrl = new URL(ownerUrl);
+// The portal connects through the pooled host when one is given (better for serverless).
+const writerUrl = new URL(process.env.AUDIT_WRITER_BASE_URL || ownerUrl);
 writerUrl.username = "audit_writer";
 writerUrl.password = password;
 
