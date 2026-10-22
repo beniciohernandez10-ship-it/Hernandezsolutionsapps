@@ -11,6 +11,7 @@ import { sweepSla } from "./sla/service";
 import { autoCloseResolved } from "./tickets/service";
 import { ingestInboundEmail } from "./email/inbound";
 import { shipAuditEvents, verifyAuditStore } from "./audit/store";
+import { generateDueReports } from "./reports/monthly";
 
 export { enqueue };
 
@@ -185,6 +186,8 @@ export async function cronTick() {
   // Catch up on anything not sent after a request, then check the off-site chain once a day.
   await shipAuditEvents({ deadlineMs: 10_000 });
   await verifyAuditStore().catch(() => null);
+  // Month-end client reports, once the month is over (no-op on other days).
+  await generateDueReports().catch((err) => log.error("reports.generate_failed", { error: errorSummary(err) }));
   try {
     await purgeExpiredAuthState();
     await housekeeping();

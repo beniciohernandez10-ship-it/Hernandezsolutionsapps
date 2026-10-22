@@ -62,6 +62,7 @@
 | | Automatic assignment rules | Implemented | Administration → Assignment rules; applied by a DB function on create |
 | Reports | Monthly service report per client: volume, response/resolution medians, categories, priorities, top requesters | Implemented | /portal/reports; print/PDF; client admins see their own without SLA or comments |
 | | SLA attainment, survey comments, CSV export | Implemented | Technicians only; CSV formulas neutralised |
+| Monthly client reports | Per client and month: every resolved request with how it was solved, who solved it, target met/missed; categories, urgency, technicians; still-open list | Implemented | Administration → Monthly reports; created automatically after each month ends and saved; print/PDF and CSV; operators only |
 | Surveys | Requester rates a resolved request (👍/👎 + comment), changeable until closed | Implemented | RLS-enforced |
 | Change management | Planned changes: type, risk, window, impact, implementation/backout plans, linked requests | Implemented | /portal/changes calendar; technicians create and run |
 | | Approval: standard pre-approved, normal by client admin, emergency by service manager; scheduled/finished notices | Implemented | Editing an approved change sends it back for approval |
