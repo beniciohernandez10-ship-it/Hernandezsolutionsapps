@@ -1,40 +1,34 @@
-# Branding and theme tokens
+# Design system and branding
 
-## Current state
+The portal follows an Apple-style, enterprise look: neutral surfaces, hairline borders, the platform font, one brand accent used sparingly, and quick, quiet motion. Guidance came from Emil Kowalski's design-engineering principles and Apple's interface guidelines.
 
-- The palette in `src/styles/brand.css` is copied from the live thehernandezsolutions.com theme variables (`--bg`, `--bg-elev`, `--surface`, `--surface-2`, `--fg`, `--fg-muted`, `--accent`, `--accent-2`, `--line`), for both its dark (default) and light themes, as supplied by the owner on 2026-10-10.
-- Hover, soft and strong-border variants are `color-mix()` blends of those values; no new hues were added.
-- The website defines no success/warning/danger colors, so those stay neutral. Fonts still use the system UI stack until the website's font is known.
-- Measured contrast (WCAG): text on background 18.4:1 dark / 17.8:1 light; muted text on raised surfaces 7.9:1 / 7.3:1; accent on surface 6.8:1 / 5.1:1; button text on accent 7.1:1 / 5.9:1.
+## Tokens
 
-## Applying the Hernandez Solutions brand
+- **`src/styles/tokens.css`** holds every semantic token (surfaces, fills, borders, text, ink, status marks, type scale, spacing, radii, shadows, motion). Colors are written once with `light-dark()`, so the portal follows the device's light or dark setting.
+- **`src/styles/brand.css`** holds the brand: the accent blues from thehernandezsolutions.com (`#2b59d9` light, `#6b95ff` dark), the focus ring and the private-note tint.
+- Components only use semantic names (`--color-surface`, `--color-accent`, …), never raw colors.
 
-All components use semantic tokens defined in `src/styles/tokens.css`. To brand the portal, set values in **`src/styles/brand.css`** only:
+## Principles
 
-```css
-:root {
-  --color-accent: …;          /* primary buttons, active nav underline, focus accents */
-  --color-accent-hover: …;
-  --color-accent-contrast: …; /* text on the accent */
-  --color-accent-soft: …;     /* translucent accent for hovers/selected states */
-  --color-link: …;
-  --color-focus: …;
-  --color-success: …; --color-warning: …; --color-danger: …; --color-info: …;
-  --font-sans: …; --font-display: …;
-}
-```
+- **Color:** primary buttons are ink (near-black in light, near-white in dark), not color. The accent marks links, focus, the selected navigation item, counts and charts. Status (open, in progress, resolved, SLA missed…) shows as a small colored icon inside a neutral chip, always with a text label.
+- **Type:** the system font (SF on Apple devices, Segoe UI Variable on Windows). Letter-spacing tightens as text grows (`--tracking-display` for headings, slightly open for small text). Numbers use tabular figures.
+- **Layout:** desktop gets a grouped sidebar (like Mail or System Settings); phones and tablets under 1024px get a translucent top bar with a menu sheet. Lists are single grouped surfaces with hairline separators.
+- **Appearance:** Settings → Appearance offers Automatic, Light or Dark. The choice is stored in the `itc-theme` cookie and rendered by the server, so there's no flash. Printing is always light.
 
-If the website uses web fonts, self-host them under `public/fonts` and add `@font-face` rules in `brand.css` (the CSP allows fonts from the portal's own origin only). Replace `public/icon.svg` with the official logo mark.
+## Accessibility
 
-## Accessibility rules that stay true after branding
-
-- Status, priority, compliance and sync state always show an icon **and** a text label; color is supplementary. Waiting and non-compliant states also use dashed borders.
-- Check contrast after setting colors: body text and `--color-text-muted` ≥ 4.5:1 on `--color-bg` and `--color-surface`; `--color-accent-contrast` on `--color-accent` ≥ 4.5:1; `--color-focus` ≥ 3:1 against adjacent colors. Any WCAG contrast checker works.
-- Motion respects `prefers-reduced-motion`.
+- Text contrast meets WCAG AA in both themes (muted text 5.4:1 or better; accent 5.5:1 or better on its backgrounds).
+- Links keep a soft underline so they never rely on color alone.
+- Touch devices get 44px targets; inputs are 16px there so iOS doesn't zoom.
+- `prefers-reduced-motion`, `prefers-reduced-transparency` (solid top bar) and `prefers-contrast: more` (stronger borders and muted text) are honored.
 
 ## Motion
 
-- Route changes use React `<ViewTransition>`: forward navigation slides content in from the right, "back" links slide it the other way, other changes cross-fade. The header stays anchored.
-- A ticket's title morphs from the list row into the detail heading.
-- List rows rise in with a short stagger; stats fade up; skeletons shimmer while loading; inline errors shake once; toasts slide in.
-- All of it is disabled under `prefers-reduced-motion: reduce`, and browsers without View Transitions simply navigate normally.
+- Things people see dozens of times a day don't animate: lists, stats, navigation highlights.
+- Page changes are a quick crossfade with a 10px nudge in the direction of travel (about 200ms), not a slide. A ticket's title morphs from the list into the detail heading.
+- Occasional surfaces (menu sheet, toasts, sign-in card) use short ease-out entrances under 300ms with strong custom curves (`--ease-out`).
+- Buttons and rows give press feedback (`scale(0.97)`); hover effects only apply on devices with a mouse.
+
+## Logo
+
+`public/icon.svg` is a vector redraw of the Hernandez Solutions mark (from `crm/public/brand/logo.png`); `public/apple-touch-icon.png` is the CRM's touch icon.

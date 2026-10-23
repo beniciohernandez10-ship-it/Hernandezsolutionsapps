@@ -3,6 +3,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch, ApiError } from "@/components/client-api";
 import { IconAlert, IconCheck } from "@/components/icons";
+import { ROLE_LABEL, type Role } from "@/lib/authz";
 
 interface Customer {
   id: string;
@@ -23,12 +24,7 @@ interface Member {
   identities: number;
 }
 
-const ROLE_LABEL: Record<string, string> = {
-  requester: "Requester",
-  client_admin: "Client administrator",
-  technician: "Technician",
-  service_manager: "Service manager",
-};
+
 
 function useAction() {
   const router = useRouter();
@@ -213,14 +209,14 @@ function CustomerCard({ c, members, connections, aiReady }: { c: Customer; membe
               {members.map((m) => (
                 <tr key={m.id}>
                   <th scope="row">{m.display_name}<br /><span className="subtle">{m.email}</span></th>
-                  <td>{ROLE_LABEL[m.role] ?? m.role}</td>
+                  <td>{ROLE_LABEL[m.role as Role] ?? m.role}</td>
                   <td>{m.identities > 0 ? "Yes" : "Invitation pending"}</td>
                   <td>
                     <button
                       className="btn btn-ghost"
                       disabled={revoke.busy}
                       onClick={() => {
-                        if (confirm(`Remove ${m.display_name}'s ${ROLE_LABEL[m.role]} access to ${c.name}?`)) {
+                        if (confirm(`Remove ${m.display_name}'s ${ROLE_LABEL[m.role as Role] ?? m.role} access to ${c.name}?`)) {
                           revoke.run(() => apiFetch(`/api/admin/memberships/${m.id}`, { method: "DELETE" }), () => "Access removed.");
                         }
                       }}

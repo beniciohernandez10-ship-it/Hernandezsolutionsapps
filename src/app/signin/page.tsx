@@ -29,9 +29,12 @@ export default async function SignInPage({ searchParams }: { searchParams: Promi
   return (
     <div className="auth-shell">
       <main className="card auth-card" id="main">
-        <p className="eyebrow">Hernandez Solutions</p>
-        <h1>IT Center</h1>
-        <p className="muted">Sign in with your work Microsoft account to request help and follow your tickets.</p>
+        <div className="auth-head">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/icon.svg" alt="" width={56} height={56} />
+          <h1>Sign in to IT Center</h1>
+          <p className="muted">Use your work Microsoft account to request help and follow your tickets with Hernandez Solutions.</p>
+        </div>
         {error && (
           <div className="alert alert-danger" role="alert">
             <div>

@@ -1,65 +1,66 @@
 /*
- * Semantic theme tokens for Hernandez Solutions IT Center.
+ * Semantic design tokens for the Hernandez Solutions IT Center.
  *
- * Components only ever reference these semantic names (--color-surface,
- * --color-accent, ...), never raw colors. To apply the Hernandez Solutions
- * brand, set values in src/styles/brand.css; no component changes are needed.
+ * Components only reference these names (--color-surface, --color-accent, ...),
+ * never raw colors. Brand hues live in src/styles/brand.css.
  *
- * Neutral fallbacks below; the real brand palette is applied in brand.css.
+ * Theme: every color is written once with light-dark(), so the portal follows
+ * the system appearance. <html data-theme="light|dark"> (Settings → Appearance)
+ * pins one. The look is deliberately quiet: neutral surfaces, hairline borders,
+ * ink-colored primary actions, and one brand accent for links, focus and
+ * selection. Status colors appear only as small marks next to a text label.
  */
 :root {
-  color-scheme: dark;
+  color-scheme: light dark;
 
   /* Surfaces */
-  --color-bg: #05060a;               /* from thehernandezsolutions.com manifest */
-  --color-surface: #0e0f14;
-  --color-surface-raised: #16171d;
-  --color-surface-sunken: #030407;
-  --color-border: #2a2b33;
-  --color-border-strong: #44454f;
+  --color-bg: light-dark(#f5f5f7, #0b0b0d);
+  --color-sidebar: light-dark(#ececef, #111113);
+  --color-surface: light-dark(#ffffff, #161618);
+  --color-surface-raised: light-dark(#ffffff, #1d1d20);
+  --color-surface-sunken: light-dark(#f2f2f4, #0f0f11);
+  /* Neutral fills for secondary controls, chips and hover states */
+  --color-fill: light-dark(rgb(0 0 0 / 0.045), rgb(255 255 255 / 0.07));
+  --color-fill-strong: light-dark(rgb(0 0 0 / 0.08), rgb(255 255 255 / 0.12));
+  --color-border: light-dark(rgb(0 0 0 / 0.08), rgb(255 255 255 / 0.08));
+  --color-border-strong: light-dark(rgb(0 0 0 / 0.15), rgb(255 255 255 / 0.16));
 
-  /* Text */
-  --color-text: #f2f2f4;
-  --color-text-muted: #a3a4ad;
-  --color-text-subtle: #7c7d87;
-  --color-text-inverse: #05060a;
+  /* Text (muted is ≥ 4.5:1 on every surface in both themes) */
+  --color-text: light-dark(#1d1d1f, #f5f5f7);
+  --color-text-muted: light-dark(#5f5f66, #a1a1a8);
+  --color-text-subtle: var(--color-text-muted);
+  --color-text-inverse: light-dark(#ffffff, #0b0b0d);
 
-  /* Brand accent (neutral until brand colors are supplied) */
-  --color-accent: #f2f2f4;
-  --color-accent-hover: #ffffff;
-  --color-accent-contrast: #05060a;
-  --color-accent-soft: rgba(242, 242, 244, 0.08);
-  --color-link: var(--color-text);
-  --color-focus: #ffffff;
+  /* Primary actions are ink, not color */
+  --color-ink: light-dark(#1d1d1f, #f5f5f7);
+  --color-ink-hover: light-dark(#38383d, #ffffff);
+  --color-ink-contrast: light-dark(#ffffff, #0b0b0d);
 
-  /* Status tones. Neutral by default; every status is also shown with an
-     icon and a text label, so meaning never depends on color alone. */
-  --color-success: var(--color-text);
-  --color-success-soft: rgba(242, 242, 244, 0.06);
-  --color-warning: var(--color-text);
-  --color-warning-soft: rgba(242, 242, 244, 0.06);
-  --color-danger: var(--color-text);
-  --color-danger-soft: rgba(242, 242, 244, 0.06);
-  --color-info: var(--color-text);
-  --color-info-soft: rgba(242, 242, 244, 0.06);
+  /* Status marks (always paired with an icon and a text label) */
+  --color-success: light-dark(#1e7d36, #32d74b);
+  --color-warning: light-dark(#a35a00, #ffb340);
+  --color-danger: light-dark(#c4161c, #ff6961);
+  --color-info: var(--color-accent);
 
-  /* Internal (private technician) note background */
-  --color-internal-note: rgba(242, 242, 244, 0.04);
+  /* Typography: the platform font (SF on Apple devices, Segoe UI Variable on Windows) */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", system-ui, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI Variable Display", "Segoe UI", system-ui, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  --text-xs: 0.75rem;     /* 12 */
+  --text-sm: 0.8125rem;   /* 13 */
+  --text-base: 0.9375rem; /* 15 */
+  --text-lg: 1.0625rem;   /* 17 */
+  --text-xl: 1.25rem;     /* 20 */
+  --text-2xl: 1.5rem;     /* 24 */
+  --text-3xl: clamp(1.4rem, 1.1rem + 1.4vw, 2rem);
+  --leading: 1.5;
+  /* Tracking is size-specific: tighter as type grows, slightly open when small */
+  --tracking-display: -0.022em;
+  --tracking-title: -0.016em;
+  --tracking-body: -0.006em;
+  --tracking-small: 0.002em;
 
-  /* Typography */
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-display: var(--font-sans);
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  --text-xs: 0.75rem;
-  --text-sm: 0.875rem;
-  --text-base: 1rem;
-  --text-lg: 1.125rem;
-  --text-xl: 1.375rem;
-  --text-2xl: 1.75rem;
-  --text-3xl: clamp(1.75rem, 1.2rem + 2vw, 2.5rem);
-  --leading: 1.55;
-
-  /* Spacing, shape, depth */
+  /* Spacing (4pt grid), shape, depth */
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
@@ -67,47 +68,48 @@
   --space-5: 1.5rem;
   --space-6: 2rem;
   --space-7: 3rem;
-  --radius-sm: 6px;
+  --radius-sm: 7px;
   --radius: 10px;
-  --radius-lg: 16px;
+  --radius-lg: 14px;
   --radius-pill: 999px;
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-  --content-max: 1180px;
-  --tap-min: 44px;
+  --shadow-color: light-dark(rgb(0 0 0 / 0.06), rgb(0 0 0 / 0.45));
+  --shadow-sm: 0 1px 2px var(--shadow-color);
+  --shadow: 0 1px 2px var(--shadow-color), 0 6px 16px var(--shadow-color);
+  --shadow-lg: 0 2px 6px var(--shadow-color), 0 16px 40px light-dark(rgb(0 0 0 / 0.12), rgb(0 0 0 / 0.6));
+  --content-max: 1200px;
+  --sidebar-width: 252px;
+  --control-h: 36px;
+  --tap-min: 36px;
 
-  /* Motion */
-  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
-  --duration-fast: 120ms;
+  /* Motion: strong custom curves, short durations (UI stays under 300ms) */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --duration-press: 120ms;
+  --duration-fast: 150ms;
   --duration: 200ms;
-  --duration-slow: 400ms;
+  --duration-slow: 260ms;
 }
 
-/* Light variant: opt-in with <html data-theme="light"> (the website itself is dark). */
-@media all {
-  :root[data-theme="light"] {
-    --color-bg: #ffffff;
-    --color-surface: #f6f6f8;
-    --color-surface-raised: #ffffff;
-    --color-surface-sunken: #eeeef1;
-    --color-border: #dcdce2;
-    --color-border-strong: #b9bac3;
-    --color-text: #05060a;
-    --color-text-muted: #4b4c56;
-    --color-text-subtle: #6b6c76;
-    --color-text-inverse: #ffffff;
-    --color-accent: #05060a;
-    --color-accent-hover: #1d1e25;
-    --color-accent-contrast: #ffffff;
-    --color-accent-soft: rgba(5, 6, 10, 0.06);
-    --color-focus: #05060a;
-    --color-success-soft: rgba(5, 6, 10, 0.05);
-    --color-warning-soft: rgba(5, 6, 10, 0.05);
-    --color-danger-soft: rgba(5, 6, 10, 0.05);
-    --color-info-soft: rgba(5, 6, 10, 0.05);
-    --color-internal-note: rgba(5, 6, 10, 0.035);
-    --shadow-sm: 0 1px 2px rgba(5, 6, 10, 0.08);
-    --shadow: 0 8px 24px rgba(5, 6, 10, 0.08);
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+/* Touch devices get full-size targets */
+@media (pointer: coarse) {
+  :root {
+    --control-h: 44px;
+    --tap-min: 44px;
+  }
+}
+
+/* Printed reports are always light, whatever the Appearance setting */
+@media print {
+  :root,
+  :root[data-theme] {
+    color-scheme: light;
   }
 }

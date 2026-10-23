@@ -5,6 +5,13 @@ export type Role = "requester" | "client_admin" | "technician" | "service_manage
 export const STAFF_ROLES: readonly Role[] = ["technician", "service_manager"];
 export const ORG_ROLES: readonly Role[] = ["client_admin", "technician", "service_manager"];
 
+export const ROLE_LABEL: Record<Role, string> = {
+  requester: "Requester",
+  client_admin: "Client administrator",
+  technician: "Technician",
+  service_manager: "Service manager",
+};
+
 export interface Membership {
   customerId: string;
   customerName: string;

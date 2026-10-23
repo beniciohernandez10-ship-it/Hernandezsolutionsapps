@@ -4,21 +4,27 @@ import { emailSendingEnabled } from "@/lib/config";
 import { getPreferences } from "@/lib/notify/service";
 import { PageTransition } from "@/components/page-transition";
 import { PreferencesForm } from "./form";
+import { AppearanceControl } from "./appearance";
+import { cookies } from "next/headers";
 
-export const metadata = { title: "Email settings" };
+export const metadata = { title: "Settings" };
 
 export default async function SettingsPage() {
   const { principal } = await requirePrincipal("/portal/settings");
   const caps = capabilities(principal);
   const prefs = await getPreferences(principal);
+  const saved = (await cookies()).get("itc-theme")?.value;
+  const theme = saved === "light" || saved === "dark" ? saved : "system";
   return (
     <PageTransition>
       <div className="page-head">
         <div>
           <p className="eyebrow">{principal.email}</p>
-          <h1>Email settings</h1>
+          <h1>Settings</h1>
         </div>
       </div>
+      <AppearanceControl initial={theme} />
+      <h2>Email</h2>
       {!emailSendingEnabled() && (
         <p className="alert alert-warning">
           <span>Email isn&apos;t switched on for the IT Center yet. Your choices are saved and apply once it is. In-app notifications always work.</span>
