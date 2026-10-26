@@ -14,6 +14,8 @@ The IT Center's notifications, file attachments and email intake work without an
 
 What an email contains: the request number, title, customer name, one line about what happened, and a link. Never message text, private notes or files. Each person controls their own email in **Email settings** (`/portal/settings`). Demo users (`@example.com`) are never emailed.
 
+Unsubscribing: every notification email has an **Unsubscribe from these emails** link and `List-Unsubscribe` / `List-Unsubscribe-Post` headers (RFC 8058), so Gmail, Outlook and Apple Mail show their own Unsubscribe button. Either one turns off just that kind of email (for example "New requests") without signing in; the page also offers "Stop all IT Center email" and Undo. Links last a year, are stored only as hashes and can change nothing but that person's email settings. Each change is audited (`notifications.unsubscribe` / `notifications.resubscribe`).
+
 ## 2. Receiving email (reply by email + intake)
 
 Use a **subdomain**, so a future Microsoft 365 mailbox on the main domain is unaffected. Suggested: `in.thehernandezsolutions.com`.

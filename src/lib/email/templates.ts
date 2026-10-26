@@ -100,6 +100,10 @@ export interface NotificationEmailInput {
   customerName: string;
   ticketUrl: string;
   settingsUrl: string;
+  /** One-click link that turns off this kind of email (no sign-in needed). */
+  unsubscribeUrl: string;
+  /** The setting it turns off, as named on the settings page. */
+  unsubscribeLabel: string;
   /** True when replying to this email adds a public reply to the ticket. */
   replyEnabled: boolean;
 }
@@ -122,6 +126,7 @@ export function renderNotificationEmail(i: NotificationEmailInput) {
     replyText,
     "",
     "Hernandez Solutions IT Center",
+    `Stop these emails ("${i.unsubscribeLabel}"): ${i.unsubscribeUrl}`,
     `Email settings: ${i.settingsUrl}`,
   ].join("\n");
   const html = `<!doctype html><html><body style="margin:0;background:#f4f5f7;font-family:Segoe UI,Helvetica,Arial,sans-serif;color:#111827">
@@ -136,7 +141,7 @@ ${i.replyEnabled ? `<div style="color:#9ca3af;font-size:11px;padding:8px 16px">$
 <a href="${escapeHtml(i.ticketUrl)}" style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;padding:10px 16px;border-radius:6px;font-size:14px">Open ${escapeHtml(ref.charAt(0).toLowerCase() + ref.slice(1))}</a>
 <p style="margin:20px 0 0;font-size:13px;color:#6b7280">${escapeHtml(replyText)}</p>
 </td></tr>
-<tr><td style="padding:16px 24px;border-top:1px solid #e5e7eb;font-size:12px;color:#9ca3af">You get this because you're part of this request. <a href="${escapeHtml(i.settingsUrl)}" style="color:#6b7280">Email settings</a></td></tr>
+<tr><td style="padding:16px 24px;border-top:1px solid #e5e7eb;font-size:12px;color:#9ca3af">You get this because you're part of this request and &ldquo;${escapeHtml(i.unsubscribeLabel)}&rdquo; is on in your email settings.<br><a href="${escapeHtml(i.unsubscribeUrl)}" style="color:#6b7280">Unsubscribe from these emails</a> · <a href="${escapeHtml(i.settingsUrl)}" style="color:#6b7280">Email settings</a></td></tr>
 </table></td></tr></table></body></html>`;
   return { subject, text, html };
 }

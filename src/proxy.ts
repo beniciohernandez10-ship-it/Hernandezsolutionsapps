@@ -53,7 +53,7 @@ export function proxy(request: NextRequest) {
     response.headers.set("strict-transport-security", "max-age=63072000; includeSubDomains");
   }
   const p = request.nextUrl.pathname;
-  if (p.startsWith("/portal") || p.startsWith("/api") || p.startsWith("/a/")) {
+  if (p.startsWith("/portal") || p.startsWith("/api") || p.startsWith("/a/") || p.startsWith("/unsubscribe/")) {
     response.headers.set("cache-control", "no-store");
     response.headers.set("x-robots-tag", "noindex, nofollow");
   }

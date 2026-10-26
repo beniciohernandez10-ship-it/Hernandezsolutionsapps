@@ -263,7 +263,7 @@ async function notifyAdmins(incidentId: string, actorUserId: string, status: str
         [a.user_id, a.customer_id, incidentId, actorUserId, status],
       );
       const wants = !a.is_demo && a.email_enabled !== false && a.email_ticket_updates !== false;
-      if (wants && emailSendingEnabled()) await enqueue(tx, "email.notification", a.customer_id, { notificationId: n.rows[0].id }, `email:${n.rows[0].id}`);
+      if (wants && emailSendingEnabled()) await enqueue(tx, "email.notification", a.customer_id, { notificationId: n.rows[0].id, category: "email_ticket_updates" }, `email:${n.rows[0].id}`);
     }
   });
 }

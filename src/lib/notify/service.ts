@@ -7,6 +7,7 @@ import { enqueue } from "../jobs-queue";
 import { sendEmail } from "../email/resend";
 import { renderNotificationEmail, type NotificationKind } from "../email/templates";
 import type { SweepEvent } from "../sla/service";
+import { CATEGORY_LABEL, categoryForKind, EMAIL_CATEGORIES, issueUnsubscribeToken, type EmailCategory } from "./unsubscribe";
 
 /**
  * Notifications. Business changes call emitTicketEvent() inside their own
@@ -30,7 +31,7 @@ export async function emitTicketEvent(tx: Queryable, ticketId: string, event: Ti
   await tx.query("select app_enqueue_ticket_event($1, $2, $3, $4)", [ticketId, event, detail, ref]);
 }
 
-type PrefKey = "email_ticket_updates" | "email_new_tickets" | "email_assignments" | "email_sla";
+type PrefKey = EmailCategory;
 
 interface Recipient {
   userId: string;
@@ -152,7 +153,7 @@ async function deliver(tx: Queryable, c: TicketContext, recipients: Recipient[],
     const u = byId.get(r.userId);
     // Missing preference row = defaults (all on). Demo users have example.com addresses and are never emailed.
     const wants = u && !u.is_demo && u.email_enabled !== false && u[r.pref] !== false && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(u.email));
-    if (wants && emailSendingEnabled()) await enqueue(tx, "email.notification", c.customerId, { notificationId: n.rows[0].id }, `email:${n.rows[0].id}`);
+    if (wants && emailSendingEnabled()) await enqueue(tx, "email.notification", c.customerId, { notificationId: n.rows[0].id, category: r.pref }, `email:${n.rows[0].id}`);
   }
   return recipients.length;
 }
@@ -197,7 +198,7 @@ export const hashReplyToken = (token: string) => createHash("sha256").update(tok
 
 /** Job handler for email.notification. */
 export async function sendNotificationEmail(payload: unknown) {
-  const { notificationId } = z.object({ notificationId: z.uuid() }).parse(payload);
+  const { notificationId, category } = z.object({ notificationId: z.uuid(), category: z.enum(EMAIL_CATEGORIES).optional() }).parse(payload);
   const ctx = await asSystem(async (tx) => {
     const r = await tx.query<Record<string, unknown>>(
       `select n.id, n.kind, n.detail, n.user_id, n.emailed_at, n.ticket_id, n.change_id, n.incident_id, n.customer_id,
@@ -227,11 +228,16 @@ export async function sendNotificationEmail(payload: unknown) {
       );
       replyTo = `t-${token}@${config().email.inboundDomain}`;
     }
-    return { row, kind, replyEnabled, replyTo };
+    const unsubscribeCategory = category ?? categoryForKind(kind);
+    const unsubscribeToken = await issueUnsubscribeToken(tx, row.user_id as string, unsubscribeCategory);
+    return { row, kind, replyEnabled, replyTo, unsubscribeCategory, unsubscribeToken };
   });
   if (!ctx) return { skipped: true };
-  const { row, kind, replyEnabled, replyTo } = ctx;
+  const { row, kind, replyEnabled, replyTo, unsubscribeCategory, unsubscribeToken } = ctx;
   const origin = config().appOrigin;
+  // The page asks first (for people); the header URL acts on POST (for mail apps).
+  const unsubscribeUrl = `${origin}/unsubscribe/${unsubscribeToken}`;
+  const oneClickUrl = `${origin}/api/unsubscribe/${unsubscribeToken}`;
   const mail = renderNotificationEmail({
     kind,
     detail: (row.detail as string) ?? null,
@@ -246,9 +252,18 @@ export async function sendNotificationEmail(payload: unknown) {
         : `${origin}/portal/tickets/${row.ticket_id}`,
     refLabel: row.change_id ? `Change CHG-${row.number}` : row.incident_id ? `Incident INC-${row.number}` : undefined,
     settingsUrl: `${origin}/portal/settings`,
+    unsubscribeUrl,
+    unsubscribeLabel: CATEGORY_LABEL[unsubscribeCategory],
     replyEnabled,
   });
-  await sendEmail({ to: row.email as string, ...mail, replyTo, idempotencyKey: `notification-${notificationId}` });
+  await sendEmail({
+    to: row.email as string,
+    ...mail,
+    replyTo,
+    // RFC 8058: mail apps show their own Unsubscribe button and POST to this URL.
+    headers: { "List-Unsubscribe": `<${oneClickUrl}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" },
+    idempotencyKey: `notification-${notificationId}`,
+  });
   await asSystem((tx) => tx.query("update notifications set emailed_at = now() where id = $1", [notificationId]));
   return { sent: true };
 }
@@ -421,7 +436,7 @@ export async function fanOutChangeEvent(payload: unknown) {
       );
       const u = byId.get(userId);
       const wants = u && !u.is_demo && u.email_enabled !== false && u.email_ticket_updates !== false && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(u.email));
-      if (wants && emailSendingEnabled()) await enqueue(tx, "email.notification", c.customer_id, { notificationId: n.rows[0].id }, `email:${n.rows[0].id}`);
+      if (wants && emailSendingEnabled()) await enqueue(tx, "email.notification", c.customer_id, { notificationId: n.rows[0].id, category: "email_ticket_updates" }, `email:${n.rows[0].id}`);
     }
     return recipients.length;
   });

@@ -48,6 +48,7 @@
 | Security | CSP with nonce, security headers, host allow-list, rate limiting, redacted logs | Implemented | |
 | Notifications | In-app notifications (bell, list, per-ticket read) | Implemented | Fan-out via the job queue; never notifies the actor |
 | | Email notifications (Resend), per-user preferences | Implemented | Off until RESEND_API_KEY + EMAIL_FROM are set; no message text in email; email-setup.md |
+| | One-click unsubscribe (RFC 8058 headers + link, no sign-in) | Implemented | Turns off that kind of email or all email; Undo; audited |
 | SLAs | Per-customer policies, business hours, holidays, time zones (DST-safe) | Implemented | Operators manage at Administration → Service levels |
 | | Pause while waiting/resolved, warnings, breaches, staff-only display, attainment | Implemented | Hidden from customers in app and RLS; sweep runs on portal use + daily cron |
 | Attachments | Upload, download, content-based type checks, internal files | Implemented | Private Vercel Blob store required in production; 4 MB per upload |
