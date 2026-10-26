@@ -9,6 +9,7 @@ import { ComplianceBadge, EmailBadge, InternalBadge, PriorityBadge, SlaBadge, St
 import { markRead } from "@/lib/notify/service";
 import { config } from "@/lib/config";
 import { attachmentsEnabled } from "@/lib/attachments/storage";
+import { antivirusConfigured } from "@/lib/attachments/scan";
 import { AttachmentPanel } from "./attachments";
 import { ApprovalCard, TaskList } from "./request";
 import { RelatedCard } from "./related";
@@ -271,6 +272,7 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
             canUpload={v.canReply}
             canInternal={v.canAddInternalNote}
             enabled={attachmentsEnabled()}
+            antivirus={antivirusConfigured()}
           />
           {v.canChangeStatus.length > 0 && <StatusControls ticketId={t.id} version={t.version} status={t.status} options={v.canChangeStatus} staff={v.isStaff} />}
           {v.canAssign && (

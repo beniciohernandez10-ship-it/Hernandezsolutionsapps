@@ -1560,6 +1560,10 @@ legend {
   overflow-wrap: anywhere;
   font-weight: 600;
 }
+/* Not downloadable: still being checked, blocked, or the check failed. */
+.attachment-name.is-unavailable {
+  color: var(--color-text-muted);
+}
 .attachment .subtle {
   flex-basis: 100%;
   font-size: var(--text-xs);

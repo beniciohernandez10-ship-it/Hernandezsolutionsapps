@@ -12,6 +12,7 @@ import { autoCloseResolved } from "./tickets/service";
 import { ingestInboundEmail } from "./email/inbound";
 import { shipAuditEvents, verifyAuditStore } from "./audit/store";
 import { generateDueReports } from "./reports/monthly";
+import { enqueueMissingScans, scanAttachment } from "./attachments/scan";
 
 export { enqueue };
 
@@ -47,6 +48,7 @@ const handlers = new Map<string, Handler>([
   ["notify.change", (j) => fanOutChangeEvent(j.payload)],
   ["email.notification", (j) => sendNotificationEmail(j.payload)],
   ["email.ingest", (j) => ingestInboundEmail(String(j.payload.inboundId))],
+  ["attachment.scan", (j) => scanAttachment(j.payload, { final: j.attempts >= j.max_attempts })],
   // One sweep for time-based ticket rules: SLA warnings/breaches and closing resolved tickets.
   [
     "sla.sweep",
@@ -156,13 +158,14 @@ export async function scheduleSlaSweep(now = new Date()) {
   await asSystem((tx) => enqueue(tx, "sla.sweep", null, {}, `sla.sweep:${now.toISOString().slice(0, 16)}`));
 }
 
-/** Deletes finished jobs, expired reply addresses and expired unsubscribe links after a retention period. */
+/** Deletes finished jobs, expired reply addresses and expired unsubscribe links, and re-queues stalled attachment scans. */
 export async function housekeeping() {
   await asSystem(async (tx) => {
     await tx.query("delete from jobs where status = 'succeeded' and updated_at < now() - interval '14 days'");
     await tx.query("delete from email_reply_tokens where expires_at < now()");
     await tx.query("delete from email_unsubscribe_tokens where expires_at < now()");
   });
+  await enqueueMissingScans();
 }
 
 /**

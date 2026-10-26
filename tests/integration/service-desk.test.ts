@@ -294,7 +294,11 @@ describe("attachments", () => {
     const t = await newTicket();
     const req = await principal(U.contosoRequester);
     const a = await uploadAttachment(req, { ticketId: t.id, filename: "screen.png", data: PNG, visibility: "public" });
-    expect((await getTicket(req, t.id)).attachments.map((x) => x.filename)).toEqual(["screen.png"]);
+    expect((await getTicket(req, t.id)).attachments.map((x) => [x.filename, x.scanStatus])).toEqual([["screen.png", "pending"]]);
+    // Nobody can open it until the scan has run.
+    await expectAppError(openAttachment(req, a.id), 404);
+    await processJobs({ limit: 50 });
+    expect((await getTicket(req, t.id)).attachments[0].scanStatus).toBe("clean");
     const own = await openAttachment(req, a.id);
     expect(own.info.contentType).toBe("image/png");
     expect((await openAttachment(await principal(U.tech), a.id)).info.id).toBe(a.id);
@@ -308,6 +312,8 @@ describe("attachments", () => {
     const t = await newTicket();
     const tech = await principal(U.tech);
     const a = await uploadAttachment(tech, { ticketId: t.id, filename: "notes.txt", data: new TextEncoder().encode("internal log"), visibility: "internal" });
+    await processJobs({ limit: 50 });
+    expect((await openAttachment(tech, a.id)).info.id).toBe(a.id);
     await expectAppError(openAttachment(await principal(U.contosoRequester), a.id), 404);
     await expectAppError(openAttachment(await principal(U.contosoAdmin), a.id), 404);
     expect((await getTicket(await principal(U.contosoRequester), t.id)).attachments).toHaveLength(0);

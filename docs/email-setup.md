@@ -45,7 +45,14 @@ npx vercel blob create-store hernandez-it-center-files --access private --enviro
 
 This connects a **private** store to the project (`BLOB_STORE_ID`); the app authenticates with the deployment's own token. Redeploy. Files are then readable only through the portal's download route, after sign-in and the same permission checks as the ticket.
 
-Rules: up to 4 MB per file through the portal (Vercel's request limit), 10 MB for email attachments, 10 files per email. Allowed: PNG, JPEG, GIF, WebP, HEIC, PDF, DOCX, XLSX, PPTX, TXT, LOG, CSV, MD. The type is checked from the file's contents. HTML, SVG, scripts, executables, archives and Office files with macros are refused. Files are **not virus-scanned** yet (Vercel Blob has no scanner); the portal says so next to the upload button.
+Rules: up to 4 MB per file through the portal (Vercel's request limit), 10 MB for email attachments, 10 files per email. Allowed: PNG, JPEG, GIF, WebP, HEIC, PDF, DOCX, XLSX, PPTX, TXT, LOG, CSV, MD. The type is checked from the file's contents. HTML, SVG, scripts, executables, archives, Office files with macros, embedded objects or ActiveX controls, and PDFs with scripts, launch actions or embedded files are refused at upload.
+
+**Malware scanning.** Every file is held as "Checking for viruses…" and can't be opened, by anyone, until a scan job marks it clean (normally a few seconds after upload). The "new file" notification waits for that too.
+
+- The built-in check always runs. It is **not an antivirus**: it recognizes the EICAR test file, so you can test the whole flow by attaching a text file containing the EICAR test string.
+- Real virus scanning: create a key at [Cloudmersive](https://cloudmersive.com/virus-api) (free tier: 600 scans a month; files up to 10 MB; their processing is stateless and doesn't keep the file). In Vercel → `hernandez-solutions-portal` → Environment Variables (Production), add `CLOUDMERSIVE_API_KEY` (mark Sensitive), then redeploy. The upload note then says files are virus-scanned; until then it says they aren't. Identical files reuse a verdict from the last 30 days, which saves scans.
+- Malware found: the file is **quarantined**. Its bytes are deleted, everyone sees "Blocked: malware found", technicians see what was found, and the audit log records `attachment.quarantined`.
+- Scanner unavailable: it retries with backoff (5 attempts). If it still fails, or the key is rejected, the file stays unavailable as "Couldn't be checked" (`attachment.scan_failed` in the audit log) and technicians can press **Check again**. Files never become available without a clean scan.
 
 Hobby plan: 1 GB of storage and 10 GB transfer a month are included; when exceeded, Blob stops until the month resets (no charge).
 

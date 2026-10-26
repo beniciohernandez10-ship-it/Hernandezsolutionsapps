@@ -52,7 +52,7 @@
 | SLAs | Per-customer policies, business hours, holidays, time zones (DST-safe) | Implemented | Operators manage at Administration → Service levels |
 | | Pause while waiting/resolved, warnings, breaches, staff-only display, attainment | Implemented | Hidden from customers in app and RLS; sweep runs on portal use + daily cron |
 | Attachments | Upload, download, content-based type checks, internal files | Implemented | Private Vercel Blob store required in production; 4 MB per upload |
-| | Malware scanning | Not built | No scanner on Vercel Blob; files labelled "not virus-scanned" |
+| | Malware scanning | Implemented | Files held until scanned clean; quarantine deletes bytes; built-in checks always, Cloudmersive antivirus when CLOUDMERSIVE_API_KEY is set; email-setup.md §3 |
 | Service catalog | Request types with custom forms, per-customer or global | Implemented | Administration → Service catalog; six starter templates |
 | | Approval by the client admin (service manager if none), fulfilment checklist | Implemented | Checklist built from the template by a DB function; staff-only edits |
 | Knowledge base | Articles for all clients, one client, or technicians; drafts | Implemented | 7 starter articles from the public Help Center |

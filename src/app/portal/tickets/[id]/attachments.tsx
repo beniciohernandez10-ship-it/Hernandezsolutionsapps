@@ -1,8 +1,8 @@
 "use client";
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { apiUpload, ApiError } from "@/components/client-api";
-import { IconAlert, IconLock, IconPaperclip } from "@/components/icons";
+import { apiFetch, apiUpload, ApiError } from "@/components/client-api";
+import { IconAlert, IconClock, IconLock, IconPaperclip } from "@/components/icons";
 import { Time } from "@/components/time";
 
 export interface AttachmentView {
@@ -14,6 +14,60 @@ export interface AttachmentView {
   inline: boolean;
   source: "portal" | "email";
   createdAt: string;
+  /** Only clean files can be opened. */
+  scanStatus: "pending" | "clean" | "quarantined" | "scan_failed";
+  /** Staff only. */
+  scanDetail: string | null;
+}
+
+/** While a file is being checked, look again every few seconds for up to two minutes. */
+function useRefreshWhilePending(pending: boolean) {
+  const router = useRouter();
+  useEffect(() => {
+    if (!pending) return;
+    let n = 0;
+    const id = setInterval(() => {
+      if (++n > 40 || document.hidden) return;
+      router.refresh();
+    }, 3000);
+    return () => clearInterval(id);
+  }, [pending, router]);
+}
+
+function ScanState({ a, staff, onRescan }: { a: AttachmentView; staff: boolean; onRescan: () => void }) {
+  if (a.scanStatus === "pending") {
+    return (
+      <span className="badge" role="status">
+        <IconClock size={13} /> Checking for viruses…
+      </span>
+    );
+  }
+  if (a.scanStatus === "quarantined") {
+    return (
+      <>
+        <span className="badge compliance-error">
+          <IconAlert size={13} /> Blocked: malware found
+        </span>
+        {staff && a.scanDetail && <span className="subtle">Found: {a.scanDetail}. The file was deleted; only this record remains.</span>}
+      </>
+    );
+  }
+  if (a.scanStatus === "scan_failed") {
+    return (
+      <>
+        <span className="badge compliance-inGracePeriod">
+          <IconAlert size={13} /> Couldn&apos;t be checked
+        </span>
+        {staff && (
+          <>
+            {a.scanDetail && <span className="subtle">{a.scanDetail}</span>}
+            <button type="button" className="btn btn-ghost" onClick={onRescan}>Check again</button>
+          </>
+        )}
+      </>
+    );
+  }
+  return null;
 }
 
 const ACCEPT = ".png,.jpg,.jpeg,.gif,.webp,.heic,.heif,.pdf,.docx,.xlsx,.pptx,.txt,.log,.csv,.md";
@@ -30,12 +84,15 @@ export function AttachmentPanel({
   canUpload,
   canInternal,
   enabled,
+  antivirus,
 }: {
   ticketId: string;
   attachments: AttachmentView[];
   canUpload: boolean;
   canInternal: boolean;
   enabled: boolean;
+  /** An antivirus engine is configured (otherwise only the built-in checks run). */
+  antivirus: boolean;
 }) {
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
@@ -43,6 +100,17 @@ export function AttachmentPanel({
   const [busy, setBusy] = useState(false);
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  useRefreshWhilePending(attachments.some((a) => a.scanStatus === "pending"));
+
+  async function rescan(id: string) {
+    setError(null);
+    try {
+      await apiFetch(`/api/attachments/${id}/rescan`, { method: "POST" });
+      start(() => router.refresh());
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Couldn't start the check.");
+    }
+  }
 
   async function upload(files: FileList | null) {
     if (!files?.length) return;
@@ -76,9 +144,15 @@ export function AttachmentPanel({
         <ul className="stack" role="list">
           {attachments.map((a) => (
             <li key={a.id} className="attachment">
-              <a href={`/api/attachments/${a.id}`} download={a.filename} className="attachment-name">
-                <IconPaperclip size={14} /> {a.filename}
-              </a>
+              {a.scanStatus === "clean" ? (
+                <a href={`/api/attachments/${a.id}`} download={a.filename} className="attachment-name">
+                  <IconPaperclip size={14} /> {a.filename}
+                </a>
+              ) : (
+                <span className="attachment-name is-unavailable">
+                  <IconPaperclip size={14} /> {a.filename}
+                </span>
+              )}
               <span className="subtle">
                 {size(a.sizeBytes)} · {a.uploaderName}
                 {a.source === "email" ? " · by email" : ""} · <Time iso={a.createdAt} />
@@ -88,7 +162,8 @@ export function AttachmentPanel({
                   <IconLock size={13} /> Technicians only
                 </span>
               )}
-              {a.inline && (
+              <ScanState a={a} staff={canInternal} onRescan={() => rescan(a.id)} />
+              {a.inline && a.scanStatus === "clean" && (
                 <a className="subtle" href={`/api/attachments/${a.id}?inline=1`} target="_blank" rel="noopener noreferrer">
                   View
                 </a>
@@ -120,7 +195,12 @@ export function AttachmentPanel({
               <IconPaperclip size={15} /> {busy ? "Uploading…" : "Add files"}
             </label>
           </div>
-          <p className="subtle">Screenshots, PDFs, Office files or text logs, up to 4 MB each. Files are private to this request and aren&apos;t virus-scanned, so only open files you expect.</p>
+          <p className="subtle">
+            Screenshots, PDFs, Office files or text logs, up to 4 MB each. Files are private to this request.{" "}
+            {antivirus
+              ? "Each file is scanned for viruses before anyone can open it."
+              : "Each file is checked for unsafe content before anyone can open it, but isn't virus-scanned, so only open files you expect."}
+          </p>
         </div>
       )}
       {canUpload && !enabled && <p className="subtle">File uploads aren&apos;t set up yet.</p>}

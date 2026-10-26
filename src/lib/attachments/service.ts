@@ -3,8 +3,8 @@ import { withUser, type Queryable } from "../db";
 import { isStaffFor, requireMember, type Principal } from "../authz";
 import { AppError, forbidden, notFound } from "../errors";
 import { config } from "../config";
-import { emitTicketEvent } from "../notify/service";
 import { attachmentStorage } from "./storage";
+import { requeueScan, type ScanStatus } from "./scan";
 import { AttachmentRejected, checkAttachment } from "./validate";
 
 export interface AttachmentInfo {
@@ -16,7 +16,10 @@ export interface AttachmentInfo {
   uploaderName: string;
   messageId: string | null;
   source: "portal" | "email";
-  scanStatus: string;
+  /** Only "clean" files can be opened. */
+  scanStatus: ScanStatus;
+  /** Staff only: what the scan found, or why it failed. */
+  scanDetail: string | null;
   inline: boolean;
   createdAt: string;
 }
@@ -33,7 +36,8 @@ function toInfo(r: Record<string, unknown>): AttachmentInfo {
     uploaderName: (r.uploader_name as string) ?? "Someone",
     messageId: (r.message_id as string) ?? null,
     source: r.source as "portal" | "email",
-    scanStatus: r.scan_status as string,
+    scanStatus: r.scan_status as ScanStatus,
+    scanDetail: (r.scan_detail as string) ?? null,
     inline: INLINE.has(r.content_type as string),
     createdAt: new Date(r.created_at as string).toISOString(),
   };
@@ -48,7 +52,7 @@ export async function listAttachments(tx: Queryable, p: Principal, ticketId: str
       order by a.created_at, a.id`,
     [ticketId, customerId],
   );
-  return r.rows.map(toInfo);
+  return r.rows.map((row) => ({ ...toInfo(row), scanDetail: staff ? ((row.scan_detail as string) ?? null) : null }));
 }
 
 export interface StoreInput {
@@ -64,7 +68,8 @@ export interface StoreInput {
 /**
  * Validates and stores one file in the user's transaction. The bytes are
  * written before the row; if the transaction then fails, the orphaned blob is
- * removed. Notifications are sent unless the caller handles them itself.
+ * removed. The file is queued for a malware scan; notifications are sent once
+ * it is clean, unless the caller handles them itself.
  */
 export async function storeAttachment(tx: Queryable, p: Principal, input: StoreInput, opts: { notify?: boolean } = {}) {
   const t = await tx.query<{ customer_id: string; status: string }>("select customer_id, status from tickets where id = $1", [input.ticketId]);
@@ -99,8 +104,9 @@ export async function storeAttachment(tx: Queryable, p: Principal, input: StoreI
       "insert into audit_events (actor_user_id, customer_id, action, target_type, target_id, details) values ($1, $2, 'ticket.attachment', 'ticket', $3, $4)",
       [p.userId, customerId, input.ticketId, JSON.stringify({ attachmentId: r.rows[0].id, size: input.data.byteLength, type: accepted.contentType, visibility: input.visibility })],
     );
-    if (opts.notify !== false) await emitTicketEvent(tx, input.ticketId, "attachment_added", input.visibility);
-    return { id: r.rows[0].id, filename: accepted.filename };
+    // Nobody can open the file until the scan marks it clean; the "new file" notification waits for that too.
+    await tx.query("select app_enqueue_attachment_scan($1, $2)", [r.rows[0].id, opts.notify !== false]);
+    return { id: r.rows[0].id, filename: accepted.filename, scanStatus: "pending" as const };
   } catch (err) {
     await storage.delete(key).catch(() => undefined);
     throw err;
@@ -130,7 +136,8 @@ export async function openAttachment(p: Principal, id: string) {
     const customerId = a.customer_id as string;
     if (!p.memberships.some((m) => m.customerId === customerId)) return null;
     if (a.visibility === "internal" && !isStaffFor(p, customerId)) return null;
-    if (a.scan_status === "quarantined") return null;
+    // Pending, failed and quarantined files are never served.
+    if (a.scan_status !== "clean") return null;
     // Requesters only see their own tickets (RLS on tickets enforces the same).
     const t = await tx.query("select 1 from tickets where id = $1", [a.ticket_id]);
     return t.rows[0] ? a : null;
@@ -139,4 +146,20 @@ export async function openAttachment(p: Principal, id: string) {
   const stream = await attachmentStorage().get(row.storage_key as string);
   if (!stream) throw notFound("File");
   return { info: toInfo(row), stream };
+}
+
+/** Staff: scan a file again after its scan failed (provider outage, key problem). */
+export async function rescanAttachment(p: Principal, id: string) {
+  if (!/^[0-9a-f-]{36}$/i.test(id)) throw notFound("File");
+  const row = await withUser(p.userId, async (tx) => {
+    const r = await tx.query<{ customer_id: string; scan_status: string }>(
+      "select a.customer_id, a.scan_status from ticket_attachments a join tickets t on t.id = a.ticket_id where a.id = $1 and a.deleted_at is null",
+      [id],
+    );
+    return r.rows[0];
+  });
+  if (!row || !isStaffFor(p, row.customer_id)) throw notFound("File");
+  if (row.scan_status !== "scan_failed") throw new AppError(409, "invalid_transition", "Only files whose scan failed can be scanned again.");
+  await requeueScan(id, row.customer_id);
+  return { scanStatus: "pending" as const };
 }
