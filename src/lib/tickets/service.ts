@@ -216,6 +216,25 @@ export async function listTickets(p: Principal, raw: Partial<Record<keyof ListTi
   });
 }
 
+/** Every unresolved ticket at the customers the principal supports, for the queue board. */
+export async function staffActiveTickets(p: Principal, limit = 2000) {
+  const staffFor = customersWhere(p, (r) => STAFF_ROLES.includes(r));
+  if (staffFor.length === 0) return [] as (TicketSummary & { queueId: string | null; assigneeUserId: string | null })[];
+  return withUser(p.userId, async (tx) => {
+    const rows = await tx.query(
+      `select ${SUMMARY_COLUMNS}, t.queue_id, t.assignee_user_id ${SUMMARY_JOINS}
+        where t.customer_id = any($1::uuid[]) and t.status not in ('resolved', 'closed')
+        order by t.created_at limit $2`,
+      [staffFor, limit],
+    );
+    return rows.rows.map((r) => ({
+      ...toSummary(r, p),
+      queueId: (r.queue_id as string) ?? null,
+      assigneeUserId: (r.assignee_user_id as string) ?? null,
+    }));
+  });
+}
+
 async function loadTicketRow(tx: Queryable, p: Principal, id: string) {
   if (!/^[0-9a-f-]{36}$/i.test(id)) throw notFound("Ticket");
   const params: unknown[] = [id];

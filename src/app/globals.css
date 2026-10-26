@@ -1951,6 +1951,112 @@ label.btn[aria-disabled="true"] {
   }
 }
 
+/* ------------------------------------------------------------------ queues */
+.queue-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 168px), 1fr));
+  gap: var(--space-3);
+}
+.queue-tile {
+  display: grid;
+  gap: 2px;
+}
+.queue-tile[aria-current="page"] {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 1px var(--color-accent), var(--shadow-sm);
+}
+.queue-tile-name {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.queue-tile-count {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: var(--tracking-title);
+  font-variant-numeric: tabular-nums;
+}
+.queue-tile-meta {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+.queue-tile-alert {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+.queue-tile-warn {
+  color: var(--color-warning);
+  font-weight: 600;
+}
+.queue-toolbar {
+  position: sticky;
+  /* Below the 57px top bar on small screens; the bar is hidden from 1024px. */
+  top: calc(57px + var(--space-2));
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  align-items: center;
+  justify-content: space-between;
+  min-height: 52px;
+  padding: 8px var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--color-surface) 88%, transparent);
+  backdrop-filter: saturate(1.8) blur(16px);
+  box-shadow: var(--shadow-sm);
+}
+@media (min-width: 1024px) {
+  .queue-toolbar {
+    top: var(--space-2);
+  }
+}
+.queue-toolbar .select {
+  width: auto;
+  min-width: 150px;
+}
+.queue-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+}
+.queue-item[data-selected] {
+  background: color-mix(in srgb, var(--color-accent) 7%, transparent);
+}
+.queue-check {
+  display: flex;
+  align-items: center;
+  padding-left: var(--space-4);
+  cursor: pointer;
+}
+.queue-check input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--color-accent);
+}
+.queue-add {
+  align-self: stretch;
+}
+.queue-add .input {
+  flex: 1 1 220px;
+  width: auto;
+  min-width: 0;
+}
+.queue-admin-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.queue-errors {
+  margin: var(--space-1) 0 0;
+  padding-left: 1.1em;
+}
+.ticket-list[aria-busy="true"] {
+  opacity: 0.6;
+  transition: opacity var(--duration-fast) ease;
+}
+
 /* ------------------------------------------------------------------ incidents and status */
 .incident-banner {
   padding: 10px 0;

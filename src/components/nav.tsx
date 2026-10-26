@@ -11,6 +11,7 @@ import {
   IconGear,
   IconHome,
   IconInbox,
+  IconLayers,
   IconList,
   IconPlus,
   IconPulse,
@@ -21,6 +22,7 @@ import {
 const ICONS = {
   home: IconHome,
   list: IconList,
+  layers: IconLayers,
   plus: IconPlus,
   book: IconBook,
   pulse: IconPulse,

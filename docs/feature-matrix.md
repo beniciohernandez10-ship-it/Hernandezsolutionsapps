@@ -11,7 +11,7 @@
 | | Private technician notes | Implemented | App + RLS enforced |
 | | Status lifecycle open / in progress / waiting / resolved | Implemented | |
 | | Reopen policy | Implemented | Customers within 14 days, staff any time |
-| | Assignment to technicians or queues, priority changes | Implemented | Queue management UI planned |
+| | Assignment to technicians or queues, priority changes | Implemented | /portal/queues board with bulk assign and move; operators manage queues at /portal/admin/queues |
 | | Ticket–device links | Implemented | |
 | | Timestamps (created, updated, first response, resolution) | Implemented | |
 | | Optimistic concurrency | Implemented | |
