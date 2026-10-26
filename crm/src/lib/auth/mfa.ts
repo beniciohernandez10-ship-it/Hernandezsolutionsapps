@@ -1,19 +1,26 @@
-import { authenticator } from "otplib";
+import { generateSecret, generateURI, verify } from "otplib";
 import QRCode from "qrcode";
 
-authenticator.options = { window: 1, step: 30 };
+/** Accept the current 30-second code and its neighbours (clock drift on phones). */
+const TOLERANCE_SECONDS = 30;
 
 export function newMfaSecret(): string {
-  return authenticator.generateSecret(20);
+  return generateSecret({ length: 20 });
 }
 
-export function verifyTotp(secret: string, code: string): boolean {
+export async function verifyTotp(secret: string, code: string): Promise<boolean> {
   const token = code.replace(/\s+/g, "");
   if (!/^\d{6}$/.test(token)) return false;
-  return authenticator.check(token, secret);
+  try {
+    const result = await verify({ secret, token, epochTolerance: TOLERANCE_SECONDS });
+    return result.valid;
+  } catch {
+    // Malformed or too-short secret: never treat as a match.
+    return false;
+  }
 }
 
 export async function mfaQrDataUrl(email: string, secret: string): Promise<string> {
-  const uri = authenticator.keyuri(email, "HS Lead Command Center", secret);
+  const uri = generateURI({ issuer: "HS Lead Command Center", label: email, secret });
   return QRCode.toDataURL(uri, { margin: 1, width: 220 });
 }

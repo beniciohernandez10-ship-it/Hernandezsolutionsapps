@@ -59,7 +59,7 @@ export async function mfaAction(_prev: ActionState, fd: FormData): Promise<Actio
     if (!(await rateLimit(`mfa:${user.id}`, 6, 5 * 60))) return { ok: false, error: "Too many codes tried. Wait 5 minutes." };
     const code = String(fd.get("code") ?? "");
     const row = await db.user.findUniqueOrThrow({ where: { id: user.id } });
-    if (!row.mfaSecretEnc || !verifyTotp(decrypt(row.mfaSecretEnc), code)) {
+    if (!row.mfaSecretEnc || !(await verifyTotp(decrypt(row.mfaSecretEnc), code))) {
       await audit(user.id, "auth.mfa_failed");
       return { ok: false, error: "That code didn't work. Check your authenticator app and try again." };
     }

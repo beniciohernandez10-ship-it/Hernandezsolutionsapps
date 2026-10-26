@@ -1,6 +1,15 @@
 "use client";
 
-import { flexRender, getCoreRowModel, useReactTable, type ColumnDef, type RowSelectionState, type VisibilityState } from "@tanstack/react-table";
+import {
+  columnVisibilityFeature,
+  flexRender,
+  rowSelectionFeature,
+  tableFeatures,
+  useTable,
+  type ColumnDef,
+  type ColumnVisibilityState,
+  type RowSelectionState,
+} from "@tanstack/react-table";
 import { ArrowDown, ArrowUp, ArrowUpDown, Ban, Columns3, Mail, Phone, PhoneCall } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -19,6 +28,9 @@ import { formatDate } from "@/lib/dates";
 import { usd } from "@/lib/money";
 import { formatPhone, telHref } from "@/lib/normalize";
 import { cn } from "@/lib/utils";
+
+/** Table features in use: checkbox selection and the Columns menu. Sorting and paging happen on the server. */
+const features = tableFeatures({ rowSelectionFeature, columnVisibilityFeature });
 
 export interface LeadRow {
   id: string;
@@ -71,7 +83,7 @@ export function LeadsTable(props: {
   const pathname = usePathname();
   const params = useSearchParams();
   const [selection, setSelection] = React.useState<RowSelectionState>({});
-  const [visibility, setVisibility] = React.useState<VisibilityState>({ owner: false, employees: false, monthly: false, last: false });
+  const [visibility, setVisibility] = React.useState<ColumnVisibilityState>({ owner: false, employees: false, monthly: false, last: false });
   React.useEffect(() => {
     try {
       const saved = localStorage.getItem("hs-lead-columns");
@@ -100,7 +112,7 @@ export function LeadsTable(props: {
   const now = new Date(props.now).getTime();
   const todayStart = new Date(props.todayStart).getTime();
 
-  const columns: ColumnDef<LeadRow>[] = [
+  const columns: ColumnDef<typeof features, LeadRow>[] = [
     {
       id: "select",
       enableHiding: false,
@@ -192,7 +204,8 @@ export function LeadsTable(props: {
     { id: "owner", header: "Owner", cell: ({ row: { original: r } }) => <span className="text-sm">{r.owner ?? "—"}</span> },
   ];
 
-  const table = useReactTable({
+  const table = useTable({
+    features,
     data: rows,
     columns,
     getRowId: (r) => r.id,
@@ -207,7 +220,6 @@ export function LeadsTable(props: {
         return next;
       });
     },
-    getCoreRowModel: getCoreRowModel(),
     enableRowSelection: canEdit,
   });
 

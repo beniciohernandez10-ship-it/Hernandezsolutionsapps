@@ -37,7 +37,7 @@ export async function confirmMfaAction(code: string): Promise<ActionState> {
     if (!(await rateLimit(`mfa-setup:${user.id}`, 10, 5 * 60))) throw new ActionError("Too many tries. Wait 5 minutes.");
     const row = await db.user.findUniqueOrThrow({ where: { id: user.id } });
     if (!row.mfaSecretEnc) throw new ActionError("Start setup again.");
-    if (!verifyTotp(decrypt(row.mfaSecretEnc), code)) throw new ActionError("That code didn't match. Check the time on your phone and try the newest code.");
+    if (!(await verifyTotp(decrypt(row.mfaSecretEnc), code))) throw new ActionError("That code didn't match. Check the time on your phone and try the newest code.");
     await db.user.update({ where: { id: user.id }, data: { mfaEnabled: true } });
     await db.session.update({ where: { id: user.sessionId }, data: { mfaVerified: true } });
     await db.session.deleteMany({ where: { userId: user.id, id: { not: user.sessionId } } });
@@ -55,7 +55,7 @@ export async function disableMfaAction(_prev: ActionState, fd: FormData): Promis
     if ((await getSetting("security")).requireMfa) throw new ActionError("Your workspace requires two-step sign-in, so it can't be turned off.");
     const { password, code } = z.object({ password: z.string().min(1), code: z.string().min(6) }).parse(formObject(fd));
     const row = await db.user.findUniqueOrThrow({ where: { id: user.id } });
-    if (!(await verifyPassword(password, row.passwordHash)) || !row.mfaSecretEnc || !verifyTotp(decrypt(row.mfaSecretEnc), code)) {
+    if (!(await verifyPassword(password, row.passwordHash)) || !row.mfaSecretEnc || !(await verifyTotp(decrypt(row.mfaSecretEnc), code))) {
       throw new ActionError("Password or code didn't match.");
     }
     await db.user.update({ where: { id: user.id }, data: { mfaEnabled: false, mfaSecretEnc: null } });
