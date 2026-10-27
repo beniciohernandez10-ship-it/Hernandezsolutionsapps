@@ -52,6 +52,8 @@ export interface AssetDetail extends AssetSummary {
   qrUrl: string;
   canEdit: boolean;
   history: { at: string; action: string; actorName: string | null; details: Record<string, unknown> }[];
+  /** Requests this hardware arrived through (hardware orders). */
+  requests: { ticketId: string; number: number; title: string }[];
 }
 
 const SELECT = `
@@ -122,6 +124,10 @@ export async function getAsset(p: Principal, id: string): Promise<AssetDetail> {
         where e.asset_id = $1 order by e.at desc, e.id desc limit 100`,
       [id],
     );
+    const reqs = await tx.query<{ id: string; number: string; title: string }>(
+      "select t.id, t.number, t.title from ticket_assets ta join tickets t on t.id = ta.ticket_id where ta.asset_id = $1 order by ta.linked_at",
+      [id],
+    );
     const creator = r.created_by
       ? await tx.query<{ display_name: string }>("select display_name from users where id = $1", [r.created_by])
       : null;
@@ -139,6 +145,7 @@ export async function getAsset(p: Principal, id: string): Promise<AssetDetail> {
         actorName: (h.display_name as string) ?? null,
         details: (typeof h.details === "string" ? JSON.parse(h.details) : h.details) as Record<string, unknown>,
       })),
+      requests: reqs.rows.map((x) => ({ ticketId: x.id, number: Number(x.number), title: x.title })),
     };
   });
 }
@@ -156,7 +163,7 @@ export async function resolveShortCode(p: Principal, code: string) {
 // ---------------------------------------------------------------- primary user
 
 type PrimaryUserInput = z.infer<typeof registerAssetSchema>["primaryUser"];
-interface ResolvedUser {
+export interface ResolvedUser {
   source: "none" | "directory" | "portal";
   tenantId: string | null;
   objectId: string | null;
@@ -283,31 +290,54 @@ export async function registerAsset(p: Principal, raw: unknown) {
   const input = registerAssetSchema.parse(raw);
   requireStaff(p, input.customerId);
   const user = await resolvePrimaryUser(input.customerId, input.primaryUser);
-  return withUser(p.userId, async (tx) => {
-    const active = await tx.query("select 1 from customers where id = $1 and status = 'active'", [input.customerId]);
-    if (!active.rows[0]) throw forbidden("Devices can only be registered for active organizations.");
-    const n = Number(
-      (await tx.query<{ n: number }>("select app_next_asset_number($1, $2) as n", [input.customerId, input.kind])).rows[0].n,
-    );
-    const tag = formatAssetTag(input.kind, n);
-    const shortCode = newShortCode((k) => randomBytes(k));
-    const ins = await tx.query<{ id: string }>(
-      `insert into assets (customer_id, kind, number, tag, short_code, primary_user_source, primary_user_tenant_id,
-                           primary_user_object_id, primary_user_portal_id, primary_user_name, primary_user_upn,
-                           location, notes, created_by, manufacturer, model, serial_number, purchase_date, warranty_expires)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, nullif($12, ''), nullif($13, ''), $14,
-               nullif($15, ''), nullif($16, ''), nullif($17, ''), nullif($18, '')::date, nullif($19, '')::date) returning id`,
-      [
-        input.customerId, input.kind, n, tag, shortCode, user.source, user.tenantId, user.objectId, user.portalUserId,
-        user.name, user.upn, input.location, input.notes, p.userId,
-        input.hardware?.manufacturer ?? "", input.hardware?.model ?? "", input.hardware?.serialNumber ?? "",
-        input.hardware?.purchaseDate ?? "", input.hardware?.warrantyExpires ?? "",
-      ],
-    );
-    const id = ins.rows[0].id;
-    await event(tx, p, id, input.customerId, "registered", { tag, primaryUser: user.name, location: input.location || null });
-    return { id, tag };
-  });
+  return withUser(p.userId, (tx) => insertAsset(tx, p, input, user));
+}
+
+/** A portal member as an asset's primary user, or nobody if they're no longer a member. */
+export async function portalPrimaryUser(customerId: string, userId: string): Promise<ResolvedUser> {
+  try {
+    return await resolvePrimaryUser(customerId, { source: "portal", userId });
+  } catch (err) {
+    if (err instanceof AppError && err.status === 422) return resolvePrimaryUser(customerId, { source: "none" });
+    throw err;
+  }
+}
+
+/**
+ * Registers one asset in the caller's (staff) transaction: allocates the next
+ * tag for its kind and records the "registered" event. Used by registerAsset
+ * and by hardware receiving.
+ */
+export async function insertAsset(
+  tx: Queryable,
+  p: Principal,
+  input: z.infer<typeof registerAssetSchema>,
+  user: ResolvedUser,
+  eventDetails: Record<string, unknown> = {},
+) {
+  const active = await tx.query("select 1 from customers where id = $1 and status = 'active'", [input.customerId]);
+  if (!active.rows[0]) throw forbidden("Devices can only be registered for active organizations.");
+  const n = Number(
+    (await tx.query<{ n: number }>("select app_next_asset_number($1, $2) as n", [input.customerId, input.kind])).rows[0].n,
+  );
+  const tag = formatAssetTag(input.kind, n);
+  const shortCode = newShortCode((k) => randomBytes(k));
+  const ins = await tx.query<{ id: string }>(
+    `insert into assets (customer_id, kind, number, tag, short_code, primary_user_source, primary_user_tenant_id,
+                         primary_user_object_id, primary_user_portal_id, primary_user_name, primary_user_upn,
+                         location, notes, created_by, manufacturer, model, serial_number, purchase_date, warranty_expires)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, nullif($12, ''), nullif($13, ''), $14,
+             nullif($15, ''), nullif($16, ''), nullif($17, ''), nullif($18, '')::date, nullif($19, '')::date) returning id`,
+    [
+      input.customerId, input.kind, n, tag, shortCode, user.source, user.tenantId, user.objectId, user.portalUserId,
+      user.name, user.upn, input.location, input.notes, p.userId,
+      input.hardware?.manufacturer ?? "", input.hardware?.model ?? "", input.hardware?.serialNumber ?? "",
+      input.hardware?.purchaseDate ?? "", input.hardware?.warrantyExpires ?? "",
+    ],
+  );
+  const id = ins.rows[0].id;
+  await event(tx, p, id, input.customerId, "registered", { tag, primaryUser: user.name, location: input.location || null, ...eventDetails });
+  return { id, tag };
 }
 
 export async function updateAsset(p: Principal, id: string, raw: unknown) {

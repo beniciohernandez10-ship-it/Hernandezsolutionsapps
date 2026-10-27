@@ -6,13 +6,16 @@ import { emitTicketEvent } from "../notify/service";
 import { createTicket } from "../tickets/service";
 import { CATEGORIES, PRIORITIES, type Category, type Priority } from "../tickets/schemas";
 import { describeAnswers, fieldsSchema, validateAnswers, type CatalogField } from "./fields";
-import { approverRole, canApprove } from "./read";
+import { canApproveRequest, requestApprovers } from "./read";
+import { cancelHardwareOrder, openHardwareOrder, sendToOrdering } from "../hardware/service";
 
 /**
  * Service catalog. A catalog request is a ticket of kind "request" with the
- * submitted answers attached. Items that need approval wait for a client
- * administrator of the customer (or a service manager if the customer has
- * none); the fulfilment checklist is created only once the request may go ahead.
+ * submitted answers attached. Items that need approval wait for the company's
+ * named approvers, or its client administrators if it has none (service
+ * managers can always decide); the fulfilment checklist is created only once
+ * the request may go ahead. Items with the "hardware" workflow then follow
+ * the ordering path in src/lib/hardware/service.ts.
  */
 
 export interface CatalogItem {
@@ -25,6 +28,8 @@ export interface CatalogItem {
   fields: CatalogField[];
   tasks: string[];
   requiresApproval: boolean;
+  /** "hardware": approve -> order -> receive and register -> deliver. */
+  workflow: "standard" | "hardware";
   active: boolean;
   sortOrder: number;
 }
@@ -40,6 +45,7 @@ function toItem(r: Record<string, unknown>): CatalogItem {
     fields: (r.fields as CatalogField[]) ?? [],
     tasks: (r.tasks as string[]) ?? [],
     requiresApproval: Boolean(r.requires_approval),
+    workflow: r.workflow === "hardware" ? "hardware" : "standard",
     active: Boolean(r.active),
     sortOrder: Number(r.sort_order),
   };
@@ -107,13 +113,15 @@ export async function submitRequest(p: Principal, itemId: string, raw: unknown, 
       catalogItemId: item.id,
       requestData,
       afterInsert: async (tx, ticket, cust) => {
+        const hardware = item.workflow === "hardware";
         if (!item.requiresApproval) {
           await createTasks(tx, ticket.id);
+          if (hardware) await openHardwareOrder(tx, p, ticket.id, cust, true);
           return;
         }
-        const approver = await approverRole(tx, cust);
+        const approvers = await requestApprovers(tx, cust);
         await tx.query("insert into approvals (ticket_id, customer_id, requested_by) values ($1, $2, $3)", [ticket.id, cust, p.userId]);
-        if (canApprove(p, cust, approver)) {
+        if (canApproveRequest(p, cust, approvers)) {
           // The person who would approve it asked for it: approved on submission.
           await tx.query(
             "update approvals set status = 'approved', decided_by = $2, decided_at = now(), note = 'Requested by an approver' where ticket_id = $1 and status = 'pending'",
@@ -121,7 +129,9 @@ export async function submitRequest(p: Principal, itemId: string, raw: unknown, 
           );
           await tx.query("update tickets set approval_status = 'approved' where id = $1", [ticket.id]);
           await createTasks(tx, ticket.id);
+          if (hardware) await openHardwareOrder(tx, p, ticket.id, cust, true);
         } else {
+          if (hardware) await openHardwareOrder(tx, p, ticket.id, cust, false);
           await tx.query("update tickets set approval_status = 'pending' where id = $1", [ticket.id]);
           await tx.query(
             "insert into ticket_events (ticket_id, customer_id, actor_user_id, kind) values ($1, $2, $3, 'approval_requested')",
@@ -149,13 +159,17 @@ export async function decideApproval(p: Principal, ticketId: string, raw: unknow
     );
     const ticket = t.rows[0];
     if (!ticket || !p.memberships.some((m) => m.customerId === ticket.customer_id)) throw notFound("Ticket");
-    const approver = await approverRole(tx, ticket.customer_id);
-    if (!canApprove(p, ticket.customer_id, approver)) throw forbidden("Only an administrator for your organization can approve requests.");
+    if (!canApproveRequest(p, ticket.customer_id, await requestApprovers(tx, ticket.customer_id))) {
+      throw forbidden("Only your organization's approvers can approve requests.");
+    }
     const a = await tx.query(
       "update approvals set status = $2, decided_by = $3, decided_at = now(), note = $4 where ticket_id = $1 and status = 'pending' returning id",
       [ticketId, input.decision, p.userId, input.note ?? null],
     );
     if (!a.rowCount) throw new AppError(409, "invalid_transition", "This request isn't waiting for approval.");
+    // Hardware: hand it to the ordering queue first; a named approver may only change the ticket while it is still pending.
+    if (input.decision === "approved") await sendToOrdering(tx, p, ticketId, ticket.customer_id);
+    else await cancelHardwareOrder(tx, ticketId);
     await tx.query(
       `update tickets set approval_status = $2, updated_at = now(), version = version + 1
          ${input.decision === "rejected" ? ", status = 'resolved', resolved_at = now(), resolution_note = $3" : ""} where id = $1`,
@@ -232,7 +246,9 @@ export async function setTaskDone(p: Principal, ticketId: string, taskId: string
 
 /** Requests waiting for this person's decision. */
 export async function pendingApprovals(p: Principal) {
-  const mine = p.memberships.filter((m) => m.role === "client_admin" || m.role === "service_manager").map((m) => m.customerId);
+  const mine = [
+    ...new Set([...p.memberships.filter((m) => m.role === "client_admin" || m.role === "service_manager").map((m) => m.customerId), ...(p.approverFor ?? [])]),
+  ];
   if (!mine.length) return [];
   return withUser(p.userId, async (tx) => {
     const r = await tx.query<{ id: string; number: string; title: string; customer_id: string; name: string; display_name: string; created_at: string }>(
@@ -243,7 +259,7 @@ export async function pendingApprovals(p: Principal) {
     );
     const out = [];
     for (const x of r.rows) {
-      if (canApprove(p, x.customer_id, await approverRole(tx, x.customer_id))) {
+      if (canApproveRequest(p, x.customer_id, await requestApprovers(tx, x.customer_id))) {
         out.push({ ticketId: x.id, number: Number(x.number), title: x.title, customerName: x.name, requesterName: x.display_name, requestedAt: new Date(x.created_at).toISOString() });
       }
     }
@@ -262,6 +278,7 @@ export const catalogItemSchema = z.object({
   fields: fieldsSchema,
   tasks: z.array(z.string().trim().min(1).max(200)).max(40),
   requiresApproval: z.boolean(),
+  workflow: z.enum(["standard", "hardware"]).default("standard"),
   active: z.boolean(),
   sortOrder: z.number().int().min(0).max(10000),
 });
@@ -275,16 +292,16 @@ export async function saveCatalogItem(p: Principal, id: string | null, raw: unkn
   requireOperator(p);
   const v = catalogItemSchema.parse(raw);
   return asSystem(async (tx) => {
-    const params = [v.customerId, v.name, v.summary, v.category, v.defaultPriority, JSON.stringify(v.fields), JSON.stringify(v.tasks), v.requiresApproval, v.active, v.sortOrder];
+    const params = [v.customerId, v.name, v.summary, v.category, v.defaultPriority, JSON.stringify(v.fields), JSON.stringify(v.tasks), v.requiresApproval, v.active, v.sortOrder, v.workflow];
     const r = id
       ? await tx.query<{ id: string }>(
           `update catalog_items set customer_id = $2, name = $3, summary = $4, category = $5, default_priority = $6, fields = $7, tasks = $8,
-                  requires_approval = $9, active = $10, sort_order = $11, updated_at = now() where id = $1 returning id`,
+                  requires_approval = $9, active = $10, sort_order = $11, workflow = $12, updated_at = now() where id = $1 returning id`,
           [id, ...params],
         )
       : await tx.query<{ id: string }>(
-          `insert into catalog_items (customer_id, name, summary, category, default_priority, fields, tasks, requires_approval, active, sort_order)
-           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) returning id`,
+          `insert into catalog_items (customer_id, name, summary, category, default_priority, fields, tasks, requires_approval, active, sort_order, workflow)
+           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) returning id`,
           params,
         );
     if (!r.rows[0]) throw notFound("Request type");

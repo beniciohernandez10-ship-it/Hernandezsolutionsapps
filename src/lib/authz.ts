@@ -29,6 +29,8 @@ export interface Principal {
   displayName: string;
   isOperator: boolean;
   memberships: Membership[];
+  /** Companies where this person is a named approver (and still a member). */
+  approverFor: string[];
   sessionAuthTime?: Date;
 }
 
@@ -45,12 +47,15 @@ export async function loadPrincipal(tx: Queryable, userId: string): Promise<Prin
       order by c.name`,
     [userId],
   );
+  const approves = await tx.query<{ customer_id: string }>("select customer_id from customer_approvers where user_id = $1", [userId]);
+  const memberOf = new Set(m.rows.map((r) => r.customer_id));
   return {
     userId: u.rows[0].id,
     email: u.rows[0].email,
     displayName: u.rows[0].display_name,
     isOperator: u.rows[0].is_platform_operator,
     memberships: m.rows.map((r) => ({ customerId: r.customer_id, customerName: r.name, role: r.role })),
+    approverFor: approves.rows.map((r) => r.customer_id).filter((c) => memberOf.has(c)),
   };
 }
 

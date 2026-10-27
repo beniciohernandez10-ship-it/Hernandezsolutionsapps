@@ -19,6 +19,7 @@ import { listAttachments, type AttachmentInfo } from "../attachments/service";
 import { approvalFor, listTasks, type ApprovalInfo, type TicketTask } from "../catalog/read";
 import { relatedTickets, type RelatedTickets } from "../productivity/service";
 import { surveyFor, type Survey } from "../surveys/service";
+import { hardwareFor, type HardwareOrderView } from "../hardware/read";
 import {
   addMessageSchema,
   createTicketSchema,
@@ -86,6 +87,8 @@ export interface TicketDetail extends TicketSummary {
   incident: { id: string; number: number; title: string; status: string } | null;
   /** The requester's rating, visible to them, their client admins and staff. */
   survey: Survey | null;
+  /** Hardware requests: where the order is and what was received. */
+  hardware: HardwareOrderView | null;
   /** Staff only. */
   slaDetail: TicketSla | null;
   viewer: {
@@ -119,13 +122,18 @@ async function audit(
   );
 }
 
-/** Builds the explicit visibility predicate for the principal (in addition to RLS). */
+/**
+ * Builds the explicit visibility predicate for the principal (in addition to
+ * RLS): the whole company for org roles, own tickets for requesters, and for
+ * named approvers the requests that went through approval.
+ */
 function scopeClause(p: Principal, params: unknown[]) {
   const org = customersWhere(p, (r) => ORG_ROLES.includes(r));
   const own = customersWhere(p, (r) => r === "requester");
-  params.push(org, own, p.userId);
+  params.push(org, own, p.userId, p.approverFor ?? []);
   const n = params.length;
-  return `(t.customer_id = any($${n - 2}::uuid[]) or (t.customer_id = any($${n - 1}::uuid[]) and t.requester_user_id = $${n}))`;
+  return `(t.customer_id = any($${n - 3}::uuid[]) or (t.customer_id = any($${n - 2}::uuid[]) and t.requester_user_id = $${n - 1})
+    or (t.customer_id = any($${n}::uuid[]) and exists (select 1 from approvals ap where ap.ticket_id = t.id)))`;
 }
 
 const SUMMARY_COLUMNS = `
@@ -319,6 +327,7 @@ export async function getTicket(p: Principal, id: string): Promise<TicketDetail>
     const isRequest = row.kind === "request";
     const approval = isRequest ? await approvalFor(tx, p, id, customerId) : null;
     const tasks = isRequest ? await listTasks(tx, id) : [];
+    const hardware = isRequest ? await hardwareFor(tx, p, id, customerId) : null;
     const related = await relatedTickets(tx, id);
     const survey = await surveyFor(tx, id);
     // Problems are technician-only; row-level security returns nothing for customers.
@@ -376,6 +385,7 @@ export async function getTicket(p: Principal, id: string): Promise<TicketDetail>
       tasks,
       related,
       survey,
+      hardware,
       problem: prob ? { id: prob.id, number: Number(prob.number), title: prob.title, status: prob.status } : null,
       incident: inc ? { id: inc.id, number: Number(inc.number), title: inc.title, status: inc.status } : null,
       slaDetail: staff ? slaSummary(row, (row.sla_policy_name as string) ?? null) : null,

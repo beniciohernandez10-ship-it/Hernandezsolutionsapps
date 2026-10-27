@@ -5,6 +5,8 @@ import { listQueuesAdmin } from "@/lib/queues/service";
 import { PageTransition } from "@/components/page-transition";
 import { IconBack } from "@/components/icons";
 import { QueuesConsole } from "./console";
+import { HardwareRouting } from "./routing";
+import { getHardwareSettings } from "@/lib/hardware/service";
 
 export const metadata = { title: "Queues" };
 
@@ -18,7 +20,7 @@ export default async function QueuesAdminPage() {
       </PageTransition>
     );
   }
-  const queues = await listQueuesAdmin(principal);
+  const [queues, hardware] = await Promise.all([listQueuesAdmin(principal), getHardwareSettings(principal)]);
   return (
     <PageTransition>
       <p>
@@ -40,6 +42,7 @@ export default async function QueuesAdminPage() {
         Assignment rules can send new requests straight to a queue.
       </p>
       <QueuesConsole queues={queues} />
+      <HardwareRouting settings={hardware} queues={queues.map((q) => ({ id: q.id, name: q.name }))} />
     </PageTransition>
   );
 }

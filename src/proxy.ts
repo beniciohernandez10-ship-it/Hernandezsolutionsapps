@@ -48,7 +48,8 @@ export function proxy(request: NextRequest) {
   response.headers.set("x-frame-options", "DENY");
   response.headers.set("cross-origin-opener-policy", "same-origin");
   response.headers.set("cross-origin-resource-policy", "same-origin");
-  response.headers.set("permissions-policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=()");
+  // Camera: this origin only, for scanning serial-number barcodes when receiving hardware.
+  response.headers.set("permissions-policy", "camera=(self), microphone=(), geolocation=(), payment=(), usb=()");
   if (https) {
     response.headers.set("strict-transport-security", "max-age=63072000; includeSubDomains");
   }

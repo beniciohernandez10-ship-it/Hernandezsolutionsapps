@@ -29,7 +29,7 @@
 | | Durable sessions, rate limits, idempotency, job queue in Postgres | Implemented | |
 | Integrations | Intune managed-device inventory (read-only) | Implemented (mocked) | Needs app registration + customer consent |
 | | Sync status, stale detection, snapshot preservation | Implemented | |
-| Devices | Registry: automatic names (WRKSTN-001, LAPTOP-001), primary user, location, history | Implemented | asset-tags.md |
+| Devices | Registry: automatic names (WRKSTN-001, LAPTOP-001, MON-001, PHONE-001, DOCK-001 …), primary user, location, history | Implemented | asset-tags.md; hardware received on a request is registered automatically |
 | | Primary user from the customer's Microsoft directory | Implemented (mocked) | Needs `User.Read.All` + customer consent |
 | | QR labels for Brother PT-D610BT (24 mm), print and PNG | Implemented | Print size verified as PDF; not tested on a physical printer |
 | | Renaming the PC through Intune | Not built | Needs a privileged write permission; off by design |
@@ -54,7 +54,8 @@
 | Attachments | Upload, download, content-based type checks, internal files | Implemented | Private Vercel Blob store required in production; 4 MB per upload |
 | | Malware scanning | Implemented | Files held until scanned clean; quarantine deletes bytes; built-in checks always, Cloudmersive antivirus when CLOUDMERSIVE_API_KEY is set; email-setup.md §3 |
 | Service catalog | Request types with custom forms, per-customer or global | Implemented | Administration → Service catalog; six starter templates |
-| | Approval by the client admin (service manager if none), fulfilment checklist | Implemented | Checklist built from the template by a DB function; staff-only edits |
+| | Approval by named approvers per company (else client admins, else service managers), fulfilment checklist | Implemented | Administration → Approvers; approvers see only requests that go through approval |
+| | Hardware orders: approve → order → receive (serial scan, each item registered as a tagged asset) → deliver | Implemented | hardware-requests.md; ordering/delivery queues under Administration → Queues; computers always tech set-up |
 | Knowledge base | Articles for all clients, one client, or technicians; drafts | Implemented | 7 starter articles from the public Help Center |
 | | Full-text search, suggestions while typing a request, helpful votes, views | Implemented | Rendered from a Markdown subset, never raw HTML |
 | Lifecycle | Resolution details required; auto-close after CLOSE_AFTER_DAYS (5) | Implemented | Customers can't reopen closed tickets |

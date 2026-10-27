@@ -1,8 +1,32 @@
-export const ASSET_KINDS = ["workstation", "laptop"] as const;
+export const ASSET_KINDS = ["workstation", "laptop", "monitor", "phone", "tablet", "dock", "printer", "accessory", "other"] as const;
 export type AssetKind = (typeof ASSET_KINDS)[number];
 
-export const KIND_PREFIX: Record<AssetKind, string> = { workstation: "WRKSTN", laptop: "LAPTOP" };
-export const KIND_LABEL: Record<AssetKind, string> = { workstation: "Workstation", laptop: "Laptop" };
+/** Computers carry their tag as the Windows device name and are always set up by a technician. */
+export const COMPUTER_KINDS: readonly AssetKind[] = ["workstation", "laptop"];
+export const isComputer = (k: AssetKind) => COMPUTER_KINDS.includes(k);
+
+export const KIND_PREFIX: Record<AssetKind, string> = {
+  workstation: "WRKSTN",
+  laptop: "LAPTOP",
+  monitor: "MON",
+  phone: "PHONE",
+  tablet: "TABLET",
+  dock: "DOCK",
+  printer: "PRINTER",
+  accessory: "ACC",
+  other: "HW",
+};
+export const KIND_LABEL: Record<AssetKind, string> = {
+  workstation: "Workstation",
+  laptop: "Laptop",
+  monitor: "Monitor",
+  phone: "Phone",
+  tablet: "Tablet",
+  dock: "Docking station",
+  printer: "Printer",
+  accessory: "Accessory",
+  other: "Other hardware",
+};
 
 /** Windows computer names are limited to 15 characters (NetBIOS). */
 export const MAX_NAME_LENGTH = 15;

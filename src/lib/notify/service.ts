@@ -48,6 +48,8 @@ interface TicketContext {
   staff: { userId: string; role: string }[];
   /** Active client administrators of the customer. */
   clientAdmins: string[];
+  /** Named approvers who are still active members (see 0019). */
+  approvers: string[];
   requesterActive: boolean;
 }
 
@@ -63,6 +65,8 @@ async function ticketContext(tx: Queryable, ticketId: string): Promise<TicketCon
     [t.rows[0].customer_id],
   );
   const staff = members.rows.filter((m) => m.role === "technician" || m.role === "service_manager").map((m) => ({ userId: m.user_id, role: m.role }));
+  const named = await tx.query<{ user_id: string }>("select user_id from customer_approvers where customer_id = $1", [t.rows[0].customer_id]);
+  const active = new Set(members.rows.map((m) => m.user_id));
   return {
     id: t.rows[0].id,
     customerId: t.rows[0].customer_id,
@@ -70,6 +74,7 @@ async function ticketContext(tx: Queryable, ticketId: string): Promise<TicketCon
     assigneeId: t.rows[0].assignee_user_id,
     staff,
     clientAdmins: members.rows.filter((m) => m.role === "client_admin").map((m) => m.user_id),
+    approvers: named.rows.map((r) => r.user_id).filter((u) => active.has(u)),
     requesterActive: members.rows.some((m) => m.user_id === t.rows[0].requester_user_id),
   };
 }
@@ -116,7 +121,7 @@ export function recipientsFor(
       break;
     case "approval_requested": {
       const managers = c.staff.filter((s) => s.role === "service_manager").map((s) => s.userId);
-      add(c.clientAdmins.length ? c.clientAdmins : managers, "approval_requested", "email_ticket_updates");
+      add(c.approvers.length ? c.approvers : c.clientAdmins.length ? c.clientAdmins : managers, "approval_requested", "email_ticket_updates");
       break;
     }
     case "approval_decided":

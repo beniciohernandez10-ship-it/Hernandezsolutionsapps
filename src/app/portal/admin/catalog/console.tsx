@@ -37,6 +37,7 @@ const blank = (): Draft => ({
   fields: [{ key: "details", label: "Details", type: "textarea", required: true }],
   tasks: [],
   requiresApproval: false,
+  workflow: "standard",
   active: true,
   sortOrder: 100,
 });
@@ -73,6 +74,7 @@ function Editor({ initial, customers, onClose }: { initial: Draft; customers: { 
       fields: d.fields.map((f) => ({ ...f, options: f.type === "select" ? f.options : undefined, help: f.help || undefined })),
       tasks: tasks.split("\n").map((t) => t.trim()).filter(Boolean),
       requiresApproval: d.requiresApproval,
+      workflow: d.workflow,
       active: d.active,
       sortOrder: d.sortOrder,
     };
@@ -138,7 +140,22 @@ function Editor({ initial, customers, onClose }: { initial: Draft; customers: { 
         <label className="check">
           <input type="checkbox" checked={d.active} onChange={(e) => set("active", e.target.checked)} /> Offered to clients
         </label>
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={d.workflow === "hardware"}
+            onChange={(e) => setD((x) => ({ ...x, workflow: e.target.checked ? "hardware" : "standard", requiresApproval: e.target.checked || x.requiresApproval }))}
+          />{" "}
+          Hardware order
+        </label>
       </div>
+      {d.workflow === "hardware" && (
+        <p className="subtle">
+          Approved requests go to the ordering queue. Staff record the order, scan each item&apos;s serial number when it arrives (which registers
+          it as an asset for the requester), and the request moves to the technicians&apos; queue for delivery. Queues are set under Administration
+          → Queues.
+        </p>
+      )}
 
       <fieldset className="stack">
         <legend className="label">Questions</legend>
@@ -229,6 +246,7 @@ export function CatalogConsole({ items, customers }: { items: CatalogItem[]; cus
                 <p className="subtle">
                   {customerName(i.customerId)} · {i.fields.length} questions · {i.tasks.length} tasks
                   {i.requiresApproval ? " · needs approval" : ""}
+                  {i.workflow === "hardware" ? " · hardware order" : ""}
                   {i.active ? "" : " · hidden"}
                 </p>
               </div>

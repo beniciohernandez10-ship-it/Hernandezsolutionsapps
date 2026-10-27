@@ -77,6 +77,18 @@ export default async function AssetPage({ params, searchParams }: { params: Prom
               <LabelDownload svgId="asset-label-svg" tag={a.tag} />
             </div>
           </section>
+          {a.requests.length > 0 && (
+            <section className="card stack" aria-labelledby="req-h">
+              <h2 id="req-h">Ordered through</h2>
+              <ul className="hw-items" role="list">
+                {a.requests.map((r) => (
+                  <li key={r.ticketId}>
+                    <Link href={`/portal/tickets/${r.ticketId}`}>#{r.number} {r.title}</Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
           <section className="card stack" aria-labelledby="hist-h">
             <h2 id="hist-h">History</h2>
             <ol className="timeline">

@@ -12,6 +12,7 @@ import { attachmentsEnabled } from "@/lib/attachments/storage";
 import { antivirusConfigured } from "@/lib/attachments/scan";
 import { AttachmentPanel } from "./attachments";
 import { ApprovalCard, TaskList } from "./request";
+import { HardwareCard } from "./hardware";
 import { RelatedCard } from "./related";
 import { SurveyCard } from "./survey";
 import { IncidentCard } from "./incident";
@@ -50,6 +51,10 @@ const EVENT_TEXT: Record<string, (from: string | null, to: string | null) => str
   approved: () => "approved this request",
   rejected: () => "declined this request",
   task_completed: () => "completed a checklist task",
+  queue_changed: (_f, t) => (t ? `moved this request to the ${t} queue` : "removed this request from its queue"),
+  hardware_ordered: () => "ordered the hardware",
+  hardware_received: (_f, t) => `received the hardware${t ? ` (${t})` : ""}`,
+  hardware_delivered: (_f, t) => (t === "user_setup" ? "delivered the hardware" : "delivered and set up the hardware"),
   attachment_added: (_f, t) => (t === "internal" ? "added a file for technicians" : "added a file"),
   sla_warning: (_f, t) => `was warned: ${t === "first_response" ? "first response" : "resolution"} target is coming up`,
   sla_breached: (_f, t) => `recorded a missed ${t === "first_response" ? "first response" : "resolution"} target`,
@@ -215,6 +220,13 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
           {v.isStaff && <ProblemCard ticketId={t.id} problem={t.problem} options={problemOptions} />}
           <SurveyCard ticketId={t.id} survey={t.survey} canRate={v.canRate} staff={v.isStaff} />
           {t.approval && <ApprovalCard ticketId={t.id} approval={t.approval} />}
+          {t.hardware && (
+            <HardwareCard
+              ticketId={t.id}
+              hardware={t.hardware}
+              requested={t.requestData?.find((a) => /what do you need/i.test(a.label))?.value ?? null}
+            />
+          )}
           <section className="card tight">
             <h2 className="eyebrow">Details</h2>
             <dl className="kv">
