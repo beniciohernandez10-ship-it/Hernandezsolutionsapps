@@ -1,0 +1,91 @@
+{
+  "managed": [
+    {
+      "id": "bot-protection",
+      "name": "Bot Protection",
+      "action": "log",
+      "wafRuleId": "managed_bot_protection"
+    },
+    {
+      "id": "ai-bots",
+      "name": "AI Bots",
+      "action": "deny",
+      "wafRuleId": "managed_ai_bots"
+    },
+    {
+      "id": "bot-id",
+      "name": "BotID",
+      "action": "basic",
+      "wafRuleId": null
+    }
+  ],
+  "rules": [
+    {
+      "action": {
+        "mitigate": {
+          "action": "rate_limit",
+          "actionDuration": null,
+          "rateLimit": {
+            "action": "rate_limit",
+            "algo": "fixed_window",
+            "keys": [
+              "ip"
+            ],
+            "limit": 300,
+            "window": 60
+          },
+          "redirect": null
+        }
+      },
+      "active": true,
+      "conditionGroup": [
+        {
+          "conditions": [
+            {
+              "neg": true,
+              "op": "pre",
+              "type": "path",
+              "value": "/_next/"
+            }
+          ]
+        }
+      ],
+      "description": "All dynamic requests: 300 per minute per IP (5/s), then 429. Excludes static assets. Internal tool: sign-in and actions are the target.",
+      "id": "rule_rate_limit_per_ip_E2N4AT",
+      "name": "Rate limit per IP",
+      "valid": true,
+      "validationErrors": null,
+      "_status": "live"
+    },
+    {
+      "action": {
+        "mitigate": {
+          "action": "deny",
+          "actionDuration": null,
+          "rateLimit": null,
+          "redirect": null
+        }
+      },
+      "active": true,
+      "conditionGroup": [
+        {
+          "conditions": [
+            {
+              "op": "re",
+              "type": "path",
+              "value": "^/(wp-|wordpress|xmlrpc[.]php|phpmyadmin|cgi-bin|[.]env|[.]git|[.]aws|[.]ssh|.*[.]php$)"
+            }
+          ]
+        }
+      ],
+      "description": "Paths only vulnerability scanners request (WordPress, PHP, dotfiles). None exist in the CRM.",
+      "id": "rule_deny_scanner_probes_J24QMV",
+      "name": "Deny scanner probes",
+      "valid": true,
+      "validationErrors": null,
+      "_status": "live"
+    }
+  ],
+  "hasDraft": false,
+  "pendingChanges": 0
+}

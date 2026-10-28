@@ -1,0 +1,90 @@
+{
+  "managed": [
+    {
+      "id": "bot-protection",
+      "name": "Bot Protection",
+      "action": "log",
+      "wafRuleId": "managed_bot_protection"
+    },
+    {
+      "id": "ai-bots",
+      "name": "AI Bots",
+      "action": "deny",
+      "wafRuleId": "managed_ai_bots"
+    },
+    {
+      "id": "bot-id",
+      "name": "BotID",
+      "action": "basic",
+      "wafRuleId": null
+    }
+  ],
+  "rules": [
+    {
+      "action": {
+        "mitigate": {
+          "action": "rate_limit",
+          "actionDuration": null,
+          "rateLimit": {
+            "action": "rate_limit",
+            "algo": "fixed_window",
+            "keys": [
+              "ip"
+            ],
+            "limit": 20,
+            "window": 60
+          },
+          "redirect": null
+        }
+      },
+      "active": true,
+      "conditionGroup": [
+        {
+          "conditions": [
+            {
+              "op": "pre",
+              "type": "path",
+              "value": "/api/"
+            }
+          ]
+        }
+      ],
+      "description": "Forms and newsletter endpoints: 20 requests per minute per IP, then 429. Protects inbox, leads and email quota.",
+      "id": "rule_rate_limit_form_ap_is_m4lSvG",
+      "name": "Rate limit form APIs",
+      "valid": true,
+      "validationErrors": null,
+      "_status": "live"
+    },
+    {
+      "action": {
+        "mitigate": {
+          "action": "deny",
+          "actionDuration": null,
+          "rateLimit": null,
+          "redirect": null
+        }
+      },
+      "active": true,
+      "conditionGroup": [
+        {
+          "conditions": [
+            {
+              "op": "re",
+              "type": "path",
+              "value": "^/(wp-|wordpress|xmlrpc[.]php|phpmyadmin|cgi-bin|[.]env|[.]git|[.]aws|[.]ssh|.*[.]php$)"
+            }
+          ]
+        }
+      ],
+      "description": "Paths only vulnerability scanners request (WordPress, PHP, dotfiles). None exist on this site.",
+      "id": "rule_deny_scanner_probes_79ZqHH",
+      "name": "Deny scanner probes",
+      "valid": true,
+      "validationErrors": null,
+      "_status": "live"
+    }
+  ],
+  "hasDraft": false,
+  "pendingChanges": 0
+}

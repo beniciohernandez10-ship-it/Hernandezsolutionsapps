@@ -1,0 +1,97 @@
+{
+  "managed": [
+    {
+      "id": "bot-protection",
+      "name": "Bot Protection",
+      "action": "log",
+      "wafRuleId": "managed_bot_protection"
+    },
+    {
+      "id": "ai-bots",
+      "name": "AI Bots",
+      "action": "deny",
+      "wafRuleId": "managed_ai_bots"
+    },
+    {
+      "id": "bot-id",
+      "name": "BotID",
+      "action": "basic",
+      "wafRuleId": null
+    }
+  ],
+  "rules": [
+    {
+      "action": {
+        "mitigate": {
+          "action": "rate_limit",
+          "actionDuration": null,
+          "rateLimit": {
+            "action": "rate_limit",
+            "algo": "fixed_window",
+            "keys": [
+              "ip"
+            ],
+            "limit": 600,
+            "window": 60
+          },
+          "redirect": null
+        }
+      },
+      "active": true,
+      "conditionGroup": [
+        {
+          "conditions": [
+            {
+              "neg": true,
+              "op": "pre",
+              "type": "path",
+              "value": "/_next/"
+            },
+            {
+              "neg": true,
+              "op": "pre",
+              "type": "path",
+              "value": "/api/inbound/"
+            }
+          ]
+        }
+      ],
+      "description": "All dynamic requests: 600 per minute per IP (10/s), then 429. Excludes static assets and the Resend inbound webhook. Shields the database from floods.",
+      "id": "rule_rate_limit_per_ip_8jYCuX",
+      "name": "Rate limit per IP",
+      "valid": true,
+      "validationErrors": null,
+      "_status": "live"
+    },
+    {
+      "action": {
+        "mitigate": {
+          "action": "deny",
+          "actionDuration": null,
+          "rateLimit": null,
+          "redirect": null
+        }
+      },
+      "active": true,
+      "conditionGroup": [
+        {
+          "conditions": [
+            {
+              "op": "re",
+              "type": "path",
+              "value": "^/(wp-|wordpress|xmlrpc[.]php|phpmyadmin|cgi-bin|[.]env|[.]git|[.]aws|[.]ssh|.*[.]php$)"
+            }
+          ]
+        }
+      ],
+      "description": "Paths only vulnerability scanners request (WordPress, PHP, dotfiles). None exist in the portal.",
+      "id": "rule_deny_scanner_probes_JmJvxe",
+      "name": "Deny scanner probes",
+      "valid": true,
+      "validationErrors": null,
+      "_status": "live"
+    }
+  ],
+  "hasDraft": false,
+  "pendingChanges": 0
+}
