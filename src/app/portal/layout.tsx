@@ -77,6 +77,7 @@ export default async function PortalLayout({ children }: { children: React.React
         ...(caps.staff ? [{ href: "/portal/recurring", label: "Recurring", icon: "repeat" as const }] : []),
         ...(caps.orgView ? [{ href: "/portal/devices", label: "Devices", icon: "device" as const }] : []),
         ...(caps.orgView ? [{ href: "/portal/reports", label: "Reports", icon: "chart" as const }] : []),
+        ...(caps.staff ? [{ href: "/portal/analytics", label: "Analytics", icon: "trend" as const }] : []),
         ...(caps.staff ? [{ href: "/portal/replies", label: "Saved replies", icon: "reply" as const }] : []),
         ...(caps.manager ? [{ href: "/portal/inbox", label: "Email inbox", icon: "inbox" as const }] : []),
       ],

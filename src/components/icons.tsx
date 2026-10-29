@@ -55,6 +55,7 @@ export const IconPulse = (p: P) => (<svg {...base(p)}><path d="M3 12h4l2.5-6 5 1
 export const IconCalendar = (p: P) => (<svg {...base(p)}><rect x="4" y="5" width="16" height="15" rx="2" /><path d="M8 3v4M16 3v4M4 10h16" /></svg>);
 export const IconSearch = (p: P) => (<svg {...base(p)}><circle cx="11" cy="11" r="6.5" /><path d="m20 20-4.2-4.2" /></svg>);
 export const IconChart = (p: P) => (<svg {...base(p)}><path d="M4 20h16" /><path d="M7 16v-5M12 16V7M17 16v-8" /></svg>);
+export const IconTrend = (p: P) => (<svg {...base(p)}><path d="M4 20h16" /><path d="m4 15 5-5 4 3 7-7" /><path d="M15 6h5v5" /></svg>);
 export const IconGear = (p: P) => (<svg {...base(p)}><circle cx="12" cy="12" r="3" /><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8" /></svg>);
 export const IconReply = (p: P) => (<svg {...base(p)}><path d="M10 8 5 12.5l5 4.5" /><path d="M5 12.5h9a5 5 0 0 1 5 5V19" /></svg>);
 export const IconSignOut = (p: P) => (<svg {...base(p)}><path d="M14 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4" /><path d="M10 16l-4-4 4-4M6 12h9" /></svg>);

@@ -9,6 +9,9 @@ import { BarList } from "@/components/charts";
 import { IconBack } from "@/components/icons";
 import { PrintButton } from "@/app/portal/reports/print-button";
 import { RerunButton } from "./rerun";
+import { ReportEmailCard } from "./email";
+import { reportEmailStatus } from "@/lib/reports/emails";
+import { emailSendingEnabled } from "@/lib/config";
 
 export const metadata = { title: "Monthly report" };
 
@@ -59,6 +62,7 @@ export default async function MonthlyReportPage({ params }: { params: Promise<{ 
   }
   const r = saved.report;
   const s = r.summary;
+  const emailStatus = await reportEmailStatus(principal, id);
   const tz = r.timeZone;
   const monthLabel = new Date(`${r.month}-15T12:00:00Z`).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
   const rated = s.satisfactionGood + s.satisfactionBad;
@@ -85,6 +89,8 @@ export default async function MonthlyReportPage({ params }: { params: Promise<{ 
           <RerunButton customerId={r.customerId} month={r.month} />
         </div>
       </div>
+
+      <ReportEmailCard reportId={id} customerId={r.customerId} status={emailStatus} emailReady={emailSendingEnabled()} />
 
       <section aria-labelledby="sum-h" className="stack">
         <h2 id="sum-h">Summary</h2>

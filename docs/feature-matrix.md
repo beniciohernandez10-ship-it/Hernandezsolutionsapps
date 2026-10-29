@@ -68,6 +68,8 @@
 | Monitoring | Alerts become requests: Intune compliance, devices not checking in, warranties ending, no spare licenses; external tools by webhook | Implemented | monitoring-alerts.md; one request per problem, repeats counted, auto-resolve when cleared if untouched |
 | Recurring requests | Scheduled maintenance opens a request on each date (daily to yearly, every N), with checklist, assignee, queue, placeholders like {month} | Implemented | recurring-tickets.md; skips a date while the last one is open; operators and service managers edit |
 | Custom ticket fields | Extra questions per client and/or category (text, paragraph, number, date, choice, yes/no), required or optional, technician-only fields | Implemented | custom-fields.md; values protected by RLS; catalog requests use their own forms |
+| Analytics | Volume and SLA trends, backlog age, technician workload, first-contact resolution, per client or across clients | Implemented | analytics.md; staff only, read through RLS |
+| Scheduled report emails | Month-end summary emailed to client administrators, automatic per client or on demand | Implemented | analytics.md; one-click unsubscribe ("Monthly reports") |
 | Time and billing | Time on requests (timer, presets, billable flag), general work, weekly timesheet | Implemented | time-billing.md; edit own until invoiced, service managers correct |
 | | Client plans (retainer, block of hours, hourly) with per-entry rounding; monthly billing, CSV export, finalize/reopen locks time | Implemented | Administration → Billing; client admins see hours used, never amounts |
 | Surveys | Requester rates a resolved request (👍/👎 + comment), changeable until closed | Implemented | RLS-enforced |

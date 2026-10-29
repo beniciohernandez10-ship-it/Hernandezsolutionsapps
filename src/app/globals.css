@@ -1780,6 +1780,82 @@ label.btn[aria-disabled="true"] {
 /* One series hue, validated against the dark and light surfaces (dataviz palette slot 1). */
 .viz-root {
   --series-1: light-dark(#2a78d6, #3987e5);
+  /* Slot 2 (orange), validated with slot 1 on #fff and #161618: CVD ΔE ≥ 24, ≥ 3:1. */
+  --series-2: light-dark(#eb6834, #d95926);
+}
+.chart .line {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.chart .line.series-1 {
+  stroke: var(--series-1);
+}
+.chart .line.series-2 {
+  stroke: var(--series-2);
+}
+.chart .dot.series-1 {
+  fill: var(--series-1);
+}
+.chart .dot.series-2 {
+  fill: var(--series-2);
+}
+.chart .dot.is-active {
+  stroke: var(--color-surface);
+  stroke-width: 2;
+}
+.chart .crosshair {
+  stroke: var(--color-border-strong);
+  stroke-width: 1;
+}
+.chart .end-label {
+  fill: var(--color-text-muted);
+  font-size: 11px;
+}
+.chart-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+.chart-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.legend-swatch {
+  width: 16px;
+  height: 4px;
+  overflow: visible;
+}
+.legend-swatch .line {
+  fill: none;
+  stroke-width: 3;
+}
+.legend-swatch .line.series-1 {
+  stroke: var(--series-1);
+}
+.legend-swatch .line.series-2 {
+  stroke: var(--series-2);
+}
+/* Analytics */
+.plain-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+}
+td.num,
+th.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 .chart {
   margin: 0;

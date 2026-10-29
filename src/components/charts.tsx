@@ -137,3 +137,158 @@ export function BarList({ data, title, total }: { data: BarDatum[]; title: strin
     </figure>
   );
 }
+
+export interface LineSeries {
+  key: string;
+  label: string;
+  /** One value per x position; null leaves a gap (nothing to measure that period). */
+  values: (number | null)[];
+}
+
+/**
+ * Line chart for a few series over time (validated slots --series-1 and
+ * --series-2, in that order). Legend above, each line labelled at its end,
+ * and a crosshair with every series' value on hover or focus.
+ */
+export function LineChart({
+  title,
+  series,
+  labels,
+  details,
+  max: fixedMax,
+  suffix = "",
+}: {
+  title: string;
+  series: LineSeries[];
+  labels: string[];
+  /** Tooltip heading per x position, e.g. "Week of Nov 3". */
+  details: string[];
+  /** Fixed top of the scale (100 for percentages). */
+  max?: number;
+  suffix?: string;
+}) {
+  const [active, setActive] = useState<number | null>(null);
+  const W = 720;
+  const H = 200;
+  const pad = { l: 36, r: 96, t: 12, b: 24 };
+  const plotW = W - pad.l - pad.r;
+  const plotH = H - pad.t - pad.b;
+  const count = labels.length;
+  const all = series.flatMap((s) => s.values.filter((v): v is number => v !== null));
+  const max = fixedMax ?? niceMax(Math.max(0, ...all));
+  const x = (i: number) => pad.l + (count <= 1 ? plotW / 2 : (i / (count - 1)) * plotW);
+  const y = (v: number) => pad.t + plotH - (v / max) * plotH;
+  const ticks = [0, max / 2, max];
+  const labelEvery = Math.ceil(count / 8);
+  const band = plotW / Math.max(1, count - 1);
+  const path = (values: (number | null)[]) => {
+    let d = "";
+    let pen = false;
+    values.forEach((v, i) => {
+      if (v === null) {
+        pen = false;
+        return;
+      }
+      d += `${pen ? "L" : "M"}${x(i)},${y(v)} `;
+      pen = true;
+    });
+    return d.trim();
+  };
+  const lastPoint = (values: (number | null)[]) => {
+    for (let i = values.length - 1; i >= 0; i--) if (values[i] !== null) return { i, v: values[i] as number };
+    return null;
+  };
+  const ends = series.flatMap((s, k) => {
+    const p = lastPoint(s.values);
+    return p ? [{ k, p }] : [];
+  });
+  // Keep two end labels from colliding.
+  const labelY = ends.map((e) => y(e.p.v));
+  if (labelY.length === 2 && Math.abs(labelY[0] - labelY[1]) < 12) {
+    const mid = (labelY[0] + labelY[1]) / 2;
+    const up = labelY[0] <= labelY[1] ? 0 : 1;
+    labelY[up] = mid - 6;
+    labelY[1 - up] = mid + 6;
+  }
+  const fmt = (v: number | null) => (v === null ? "—" : `${v}${suffix}`);
+  const isolated = (values: (number | null)[], i: number) => values[i] !== null && (values[i - 1] ?? null) === null && (values[i + 1] ?? null) === null;
+  return (
+    <figure className="viz-root chart">
+      <figcaption className="chart-title">{title}</figcaption>
+      {series.length > 1 && (
+        <ul className="chart-legend" role="list">
+          {series.map((s, k) => (
+            <li key={s.key}>
+              <svg viewBox="0 0 16 4" className="legend-swatch" aria-hidden="true">
+                <line x1="0" x2="16" y1="2" y2="2" className={`line series-${k + 1}`} />
+              </svg>
+              {s.label}
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="chart-plot">
+        <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${title}. ${series.map((s) => s.label).join(" and ")} over ${count} periods. A table of the values follows.`}>
+          {ticks.map((t) => (
+            <g key={t}>
+              <line x1={pad.l} x2={W - pad.r} y1={y(t)} y2={y(t)} className={t === 0 ? "axis" : "grid"} />
+              <text x={pad.l - 6} y={y(t)} dy="0.32em" textAnchor="end" className="tick">
+                {Math.round(t)}
+                {suffix}
+              </text>
+            </g>
+          ))}
+          {labels.map((l, i) =>
+            i % labelEvery === 0 ? (
+              <text key={`${l}-${i}`} x={x(i)} y={H - 6} textAnchor="middle" className="tick">{l}</text>
+            ) : null,
+          )}
+          {active !== null && <line x1={x(active)} x2={x(active)} y1={pad.t} y2={pad.t + plotH} className="crosshair" />}
+          {series.map((s, k) => (
+            <path key={s.key} d={path(s.values)} className={`line series-${k + 1}`} />
+          ))}
+          {/* A lone point between gaps draws no line, so mark it. */}
+          {series.map((s, k) =>
+            s.values.map((v, i) => (v !== null && isolated(s.values, i) ? <circle key={`${s.key}-${i}`} cx={x(i)} cy={y(v)} r="3" className={`dot series-${k + 1}`} /> : null)),
+          )}
+          {active !== null &&
+            series.map((s, k) => {
+              const v = s.values[active];
+              return v !== null ? <circle key={s.key} cx={x(active)} cy={y(v)} r="4.5" className={`dot is-active series-${k + 1}`} /> : null;
+            })}
+          {ends.map((e, j) => (
+            <text key={series[e.k].key} x={x(e.p.i) + 8} y={labelY[j]} dy="0.32em" className="end-label">
+              {series[e.k].label} {fmt(e.p.v)}
+            </text>
+          ))}
+          {labels.map((l, i) => (
+            <rect
+              key={`hit-${l}-${i}`}
+              x={x(i) - band / 2}
+              y={pad.t}
+              width={band}
+              height={plotH}
+              className="hit"
+              tabIndex={0}
+              aria-label={`${details[i]}: ${series.map((s) => `${s.label} ${fmt(s.values[i])}`).join(", ")}`}
+              onMouseEnter={() => setActive(i)}
+              onMouseLeave={() => setActive(null)}
+              onFocus={() => setActive(i)}
+              onBlur={() => setActive(null)}
+            />
+          ))}
+        </svg>
+        {active !== null && (
+          <div className="chart-tip" role="status" style={{ left: `${(x(active) / W) * 100}%` }}>
+            <strong>{details[active]}</strong>
+            {series.map((s) => (
+              <span key={s.key}>
+                {s.label}: {fmt(s.values[active])}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    </figure>
+  );
+}

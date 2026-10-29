@@ -10,7 +10,7 @@ import type { NotificationKind } from "../email/templates";
  * long, random, stored as a hash, expires, and can do nothing else.
  */
 
-export const EMAIL_CATEGORIES = ["email_ticket_updates", "email_new_tickets", "email_assignments", "email_sla"] as const;
+export const EMAIL_CATEGORIES = ["email_ticket_updates", "email_new_tickets", "email_assignments", "email_sla", "email_reports"] as const;
 export type EmailCategory = (typeof EMAIL_CATEGORIES)[number];
 
 /** Same wording as the email settings page. */
@@ -19,6 +19,7 @@ export const CATEGORY_LABEL: Record<EmailCategory, string> = {
   email_new_tickets: "New requests",
   email_assignments: "Assignments",
   email_sla: "Service-level alerts",
+  email_reports: "Monthly reports",
 };
 
 const TOKEN_DAYS = 365;
@@ -63,7 +64,8 @@ async function load(tx: Queryable, token: string) {
   const r = await tx.query<{ user_id: string; category: EmailCategory; email: string; email_enabled: boolean | null; on: boolean | null }>(
     `select t.user_id, t.category, u.email, p.email_enabled,
             case t.category when 'email_ticket_updates' then p.email_ticket_updates when 'email_new_tickets' then p.email_new_tickets
-                            when 'email_assignments' then p.email_assignments else p.email_sla end as on
+                            when 'email_assignments' then p.email_assignments
+                            when 'email_reports' then p.email_reports else p.email_sla end as on
        from email_unsubscribe_tokens t join users u on u.id = t.user_id
        left join notification_preferences p on p.user_id = t.user_id
       where t.token_hash = $1 and t.expires_at > now() and u.status = 'active'`,

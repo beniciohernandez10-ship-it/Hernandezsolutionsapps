@@ -20,6 +20,7 @@ import {
   IconReply,
   IconSearch,
   IconSync,
+  IconTrend,
 } from "./icons";
 
 const ICONS = {
@@ -40,6 +41,7 @@ const ICONS = {
   alert: IconAlert,
   reply: IconReply,
   repeat: IconSync,
+  trend: IconTrend,
 };
 
 export type NavIcon = keyof typeof ICONS;

@@ -15,6 +15,7 @@ import { generateDueReports } from "./reports/monthly";
 import { enqueueMissingScans, scanAttachment } from "./attachments/scan";
 import { runMonitoringChecks, scheduleMonitoring } from "./monitoring/service";
 import { runDueRecurring, scheduleRecurring } from "./recurring/service";
+import { sendReportEmail } from "./reports/emails";
 
 export { enqueue };
 
@@ -52,6 +53,7 @@ const handlers = new Map<string, Handler>([
   ["email.ingest", (j) => ingestInboundEmail(String(j.payload.inboundId))],
   ["monitoring.check", () => runMonitoringChecks()],
   ["recurring.run", () => runDueRecurring()],
+  ["report.email", (j) => sendReportEmail(j.payload)],
   ["attachment.scan", (j) => scanAttachment(j.payload, { final: j.attempts >= j.max_attempts })],
   // One sweep for time-based ticket rules: SLA warnings/breaches and closing resolved tickets.
   [

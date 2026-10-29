@@ -356,10 +356,11 @@ export const preferencesSchema = z.object({
   emailNewTickets: z.boolean(),
   emailAssignments: z.boolean(),
   emailSla: z.boolean(),
+  emailReports: z.boolean().default(true),
 });
 export type Preferences = z.infer<typeof preferencesSchema>;
 
-const DEFAULT_PREFS: Preferences = { emailEnabled: true, emailTicketUpdates: true, emailNewTickets: true, emailAssignments: true, emailSla: true };
+const DEFAULT_PREFS: Preferences = { emailEnabled: true, emailTicketUpdates: true, emailNewTickets: true, emailAssignments: true, emailSla: true, emailReports: true };
 
 export async function getPreferences(p: Principal): Promise<Preferences> {
   return withUser(p.userId, async (tx) => {
@@ -372,6 +373,7 @@ export async function getPreferences(p: Principal): Promise<Preferences> {
       emailNewTickets: x.email_new_tickets,
       emailAssignments: x.email_assignments,
       emailSla: x.email_sla,
+      emailReports: x.email_reports,
     };
   });
 }
@@ -380,11 +382,11 @@ export async function updatePreferences(p: Principal, raw: unknown): Promise<Pre
   const v = preferencesSchema.parse(raw);
   await withUser(p.userId, (tx) =>
     tx.query(
-      `insert into notification_preferences (user_id, email_enabled, email_ticket_updates, email_new_tickets, email_assignments, email_sla, updated_at)
-       values ($1, $2, $3, $4, $5, $6, now())
+      `insert into notification_preferences (user_id, email_enabled, email_ticket_updates, email_new_tickets, email_assignments, email_sla, email_reports, updated_at)
+       values ($1, $2, $3, $4, $5, $6, $7, now())
        on conflict (user_id) do update set email_enabled = $2, email_ticket_updates = $3, email_new_tickets = $4,
-         email_assignments = $5, email_sla = $6, updated_at = now()`,
-      [p.userId, v.emailEnabled, v.emailTicketUpdates, v.emailNewTickets, v.emailAssignments, v.emailSla],
+         email_assignments = $5, email_sla = $6, email_reports = $7, updated_at = now()`,
+      [p.userId, v.emailEnabled, v.emailTicketUpdates, v.emailNewTickets, v.emailAssignments, v.emailSla, v.emailReports],
     ),
   );
   return v;

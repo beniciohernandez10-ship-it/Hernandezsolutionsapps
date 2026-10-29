@@ -5,6 +5,7 @@ import { AppError, notFound } from "../errors";
 import { log, errorSummary } from "../log";
 import { PRIORITIES, type Category, type Priority } from "../tickets/schemas";
 import { csvCell, currentMonth, monthRange, reportSchema, REPORT_TZ } from "./service";
+import { queueReportEmails } from "./emails";
 
 /**
  * Month-end client reports for operators to send to each client's owners:
@@ -219,8 +220,8 @@ export const previousMonth = (month: string) => {
 export async function generateDueReports(now = new Date()) {
   const month = previousMonth(currentMonth(now));
   const due = await asSystem((tx) =>
-    tx.query<{ id: string }>(
-      `select c.id from customers c
+    tx.query<{ id: string; report_emails: boolean }>(
+      `select c.id, c.report_emails from customers c
         where c.status = 'active' and ($2::boolean or not c.is_demo)
           and not exists (select 1 from monthly_reports r where r.customer_id = c.id and r.month = $1)`,
       [month, config().demoMode],
@@ -229,8 +230,10 @@ export async function generateDueReports(now = new Date()) {
   let generated = 0;
   for (const c of due.rows) {
     try {
-      await save(c.id, month, null);
+      const saved = await save(c.id, month, null);
       generated++;
+      // Clients with month-end emails on: their administrators get a summary.
+      if (c.report_emails) await asSystem((tx) => queueReportEmails(tx, saved.id, c.id, { manual: false }));
     } catch (err) {
       log.error("reports.monthly_failed", { customerId: c.id, month, error: errorSummary(err) });
     }

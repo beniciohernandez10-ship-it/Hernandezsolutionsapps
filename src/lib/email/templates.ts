@@ -145,3 +145,63 @@ ${i.replyEnabled ? `<div style="color:#9ca3af;font-size:11px;padding:8px 16px">$
 </table></td></tr></table></body></html>`;
   return { subject, text, html };
 }
+
+export interface ReportEmailInput {
+  customerName: string;
+  /** "October 2026". */
+  monthLabel: string;
+  opened: number;
+  resolved: number;
+  stillOpen: number;
+  medianResolutionHours: number | null;
+  /** Resolved requests with a resolution target, and how many met it. */
+  slaTracked: number;
+  slaMet: number;
+  satisfactionGood: number;
+  satisfactionBad: number;
+  reportUrl: string;
+  settingsUrl: string;
+  unsubscribeUrl: string;
+}
+
+/** Month-end summary for a client's administrators. Totals only: the detail is in the portal, behind sign-in. */
+export function renderReportEmail(i: ReportEmailInput) {
+  const name = oneLine(i.customerName, 120);
+  const subject = `${name}: IT support report for ${i.monthLabel}`;
+  const hours = (h: number | null) => (h === null ? "—" : h < 24 ? `${h} h` : `${Math.round((h / 24) * 10) / 10} days`);
+  const rated = i.satisfactionGood + i.satisfactionBad;
+  const rows: [string, string][] = [
+    ["Requests opened", String(i.opened)],
+    ["Resolved", String(i.resolved)],
+    ["Still open at month end", String(i.stillOpen)],
+    ["Median time to resolve", hours(i.medianResolutionHours)],
+    ["Resolved within target", i.slaTracked ? `${i.slaMet} of ${i.slaTracked} (${Math.round((i.slaMet / i.slaTracked) * 100)}%)` : "—"],
+    ["Satisfaction", rated ? `${i.satisfactionGood} of ${rated} rated good` : "No ratings"],
+  ];
+  const text = [
+    `IT support report for ${name}, ${i.monthLabel}`,
+    "",
+    ...rows.map(([k, v]) => `${k}: ${v}`),
+    "",
+    `See the full report: ${i.reportUrl}`,
+    "",
+    "Hernandez Solutions IT Center",
+    `Stop these emails ("Monthly reports"): ${i.unsubscribeUrl}`,
+    `Email settings: ${i.settingsUrl}`,
+  ].join("\n");
+  const html = `<!doctype html><html><body style="margin:0;background:#f4f5f7;font-family:Segoe UI,Helvetica,Arial,sans-serif;color:#111827">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:24px 12px">
+<table role="presentation" width="100%" style="max-width:560px;background:#ffffff;border:1px solid #e5e7eb;border-radius:8px" cellpadding="0" cellspacing="0">
+<tr><td style="padding:20px 24px;border-bottom:1px solid #e5e7eb;font-size:13px;color:#6b7280">Hernandez Solutions IT Center · ${escapeHtml(name)}</td></tr>
+<tr><td style="padding:24px">
+<p style="margin:0 0 4px;font-size:13px;color:#6b7280">Monthly report</p>
+<h1 style="margin:0 0 16px;font-size:18px;line-height:1.35">IT support for ${escapeHtml(i.monthLabel)}</h1>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;margin:0 0 20px">
+${rows.map(([k, v]) => `<tr><td style="padding:6px 0;border-bottom:1px solid #f0f1f3;color:#6b7280">${escapeHtml(k)}</td><td align="right" style="padding:6px 0;border-bottom:1px solid #f0f1f3;font-weight:600">${escapeHtml(v)}</td></tr>`).join("\n")}
+</table>
+<a href="${escapeHtml(i.reportUrl)}" style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;padding:10px 16px;border-radius:6px;font-size:14px">See the full report</a>
+</td></tr>
+<tr><td style="padding:16px 24px;border-top:1px solid #e5e7eb;font-size:12px;color:#9ca3af">You get this as an administrator for ${escapeHtml(name)} with &ldquo;Monthly reports&rdquo; on in your email settings.<br><a href="${escapeHtml(i.unsubscribeUrl)}" style="color:#6b7280">Unsubscribe from these emails</a> · <a href="${escapeHtml(i.settingsUrl)}" style="color:#6b7280">Email settings</a></td></tr>
+</table></td></tr></table></body></html>`;
+  return { subject, text, html };
+}

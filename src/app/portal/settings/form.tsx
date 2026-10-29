@@ -9,9 +9,10 @@ interface Prefs {
   emailNewTickets: boolean;
   emailAssignments: boolean;
   emailSla: boolean;
+  emailReports: boolean;
 }
 
-export function PreferencesForm({ initial, staff }: { initial: Prefs; staff: boolean }) {
+export function PreferencesForm({ initial, staff, clientAdmin = false }: { initial: Prefs; staff: boolean; clientAdmin?: boolean }) {
   const [p, setP] = useState(initial);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -49,6 +50,7 @@ export function PreferencesForm({ initial, staff }: { initial: Prefs; staff: boo
         {staff && option("emailNewTickets", "New requests", "For customers you're assigned to, when nobody is assigned yet.")}
         {staff && option("emailAssignments", "Assignments", "When a ticket is assigned to you.")}
         {staff && option("emailSla", "Service-level alerts", "When a response or resolution target is close or missed.")}
+        {clientAdmin && option("emailReports", "Monthly reports", "A summary of your organization's requests when each month's report is ready.")}
       </fieldset>
       <p className="subtle">Emails show the request number, title and what changed, never the message text. Open the request to read it.</p>
       <div className="row">

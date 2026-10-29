@@ -30,7 +30,7 @@ export default async function SettingsPage() {
           <span>Email isn&apos;t switched on for the IT Center yet. Your choices are saved and apply once it is. In-app notifications always work.</span>
         </p>
       )}
-      <PreferencesForm initial={prefs} staff={caps.staff} />
+      <PreferencesForm initial={prefs} staff={caps.staff} clientAdmin={principal.memberships.some((m) => m.role === "client_admin")} />
     </PageTransition>
   );
 }
