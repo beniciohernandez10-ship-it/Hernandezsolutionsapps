@@ -65,6 +65,8 @@
 | Reports | Monthly service report per client: volume, response/resolution medians, categories, priorities, top requesters | Implemented | /portal/reports; print/PDF; client admins see their own without SLA or comments |
 | | SLA attainment, survey comments, CSV export | Implemented | Technicians only; CSV formulas neutralised |
 | Monthly client reports | Per client and month: every resolved request with how it was solved, who solved it, target met/missed; categories, urgency, technicians; still-open list | Implemented | Administration → Monthly reports; created automatically after each month ends and saved; print/PDF and CSV; operators only |
+| Time and billing | Time on requests (timer, presets, billable flag), general work, weekly timesheet | Implemented | time-billing.md; edit own until invoiced, service managers correct |
+| | Client plans (retainer, block of hours, hourly) with per-entry rounding; monthly billing, CSV export, finalize/reopen locks time | Implemented | Administration → Billing; client admins see hours used, never amounts |
 | Surveys | Requester rates a resolved request (👍/👎 + comment), changeable until closed | Implemented | RLS-enforced |
 | Change management | Planned changes: type, risk, window, impact, implementation/backout plans, linked requests | Implemented | /portal/changes calendar; technicians create and run |
 | | Approval: standard pre-approved, normal by client admin, emergency by service manager; scheduled/finished notices | Implemented | Editing an approved change sends it back for approval |

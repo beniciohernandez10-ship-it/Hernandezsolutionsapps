@@ -38,6 +38,7 @@ export default async function AdminPage() {
           <Link className="btn" href="/portal/admin/sla" transitionTypes={["nav-forward"]}>Service levels</Link>
           <Link className="btn" href="/portal/admin/queues" transitionTypes={["nav-forward"]}>Queues</Link>
           <Link className="btn" href="/portal/admin/approvers" transitionTypes={["nav-forward"]}>Approvers</Link>
+          <Link className="btn" href="/portal/admin/billing" transitionTypes={["nav-forward"]}>Billing</Link>
           <Link className="btn" href="/portal/admin/rules" transitionTypes={["nav-forward"]}>Assignment rules</Link>
           <Link className="btn" href="/portal/admin/reports" transitionTypes={["nav-forward"]}>Monthly reports</Link>
           <Link className="btn" href="/portal/admin/audit" transitionTypes={["nav-forward"]}>Audit log</Link>

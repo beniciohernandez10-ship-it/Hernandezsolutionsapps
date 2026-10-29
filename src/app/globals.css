@@ -1955,6 +1955,54 @@ label.btn[aria-disabled="true"] {
   }
 }
 
+/* ------------------------------------------------------------------ time tracking */
+.time-quick .btn[aria-pressed="true"] {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 1px var(--color-accent);
+}
+/* Fields fill the card width (stack-tight aligns children to the start). */
+.time-form > .grid,
+.time-form > .field {
+  align-self: stretch;
+}
+.time-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  border-top: 1px solid var(--color-border);
+}
+.time-entry {
+  display: grid;
+  gap: 4px;
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--text-sm);
+}
+.time-entry:last-child {
+  border-bottom: 0;
+}
+.time-edit {
+  justify-self: start;
+  min-height: 28px;
+  padding: 0 8px;
+}
+.time-duration {
+  width: 9rem;
+}
+.week-table td,
+.week-table th {
+  white-space: nowrap;
+}
+.week-table td.note-cell {
+  white-space: normal;
+  min-width: 12rem;
+}
+.money {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
 /* ------------------------------------------------------------------ hardware orders */
 .hw-steps {
   list-style: none;

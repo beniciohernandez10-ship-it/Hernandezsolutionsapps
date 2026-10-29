@@ -1,6 +1,8 @@
 import { requirePrincipal } from "@/lib/auth/current";
 import { ORG_ROLES } from "@/lib/authz";
 import { buildReport, currentMonth } from "@/lib/reports/service";
+import { planUsage } from "@/lib/billing/service";
+import { formatMinutes } from "@/lib/billing/compute";
 import { CATEGORY_LABEL, PRIORITY_LABEL } from "@/lib/tickets/schemas";
 import { PageTransition } from "@/components/page-transition";
 import { BarList, ColumnChart } from "@/components/charts";
@@ -41,7 +43,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
   }
   const customerId = orgs.some((o) => o.customerId === sp.customer) ? sp.customer! : orgs[0].customerId;
   const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(sp.month ?? "") ? sp.month! : currentMonth();
-  const r = await buildReport(principal, { customerId, month });
+  const [r, usage] = await Promise.all([buildReport(principal, { customerId, month }), planUsage(principal, customerId, month)]);
   const monthLabel = new Date(`${month}-15T12:00:00Z`).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
   const rated = r.satisfaction.good + r.satisfaction.bad;
   const day = (iso: string) => new Date(`${iso}T12:00:00Z`);
@@ -88,6 +90,21 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
           <Tile label="Median time to resolve" value={r.medianResolutionHours === null ? "—" : minutes(Math.round(r.medianResolutionHours * 60))} />
           <Tile label="Satisfaction" value={pct(r.satisfaction.good, rated)} hint={rated ? `${r.satisfaction.good} 👍 · ${r.satisfaction.bad} 👎 of ${rated} rated` : "No ratings yet"} />
         </div>
+        {usage && (
+          <div className="card tight stack-tight">
+            <p className="eyebrow">Support plan · {usage.planName}</p>
+            <p>
+              <strong>{formatMinutes(usage.usedMinutes)}</strong> of support time in {monthLabel}
+              {usage.kind === "retainer" && usage.includedMinutes !== null && <> out of {formatMinutes(usage.includedMinutes)} included</>}
+              {usage.kind === "block" && usage.remainingMinutes !== null && (
+                <>
+                  ; {usage.remainingMinutes >= 0 ? `${formatMinutes(usage.remainingMinutes)} left in your block of hours` : `${formatMinutes(-usage.remainingMinutes)} beyond your block of hours`}
+                </>
+              )}
+              .
+            </p>
+          </div>
+        )}
         <p className="subtle">Times are wall-clock, from when a request was opened. Figures come only from requests in the IT Center for {monthLabel} (Pacific time).</p>
       </section>
 

@@ -11,6 +11,8 @@ import { config } from "@/lib/config";
 import { attachmentsEnabled } from "@/lib/attachments/storage";
 import { antivirusConfigured } from "@/lib/attachments/scan";
 import { AttachmentPanel } from "./attachments";
+import { TimeCard } from "./time";
+import { ticketTime } from "@/lib/billing/service";
 import { ApprovalCard, TaskList } from "./request";
 import { HardwareCard } from "./hardware";
 import { RelatedCard } from "./related";
@@ -77,7 +79,7 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
     throw e;
   }
   const v = t.viewer;
-  const [staff, queues, devices, canned, incidentOptions, problemOptions, aiOn] = await Promise.all([
+  const [staff, queues, devices, canned, incidentOptions, problemOptions, aiOn, time] = await Promise.all([
     v.canAssign ? listAssignableStaff(principal, t.customerId) : Promise.resolve([]),
     v.canAssign ? listQueues(principal) : Promise.resolve([]),
     v.canLinkDevices ? listDevices(principal, t.customerId).then((d) => d.devices) : Promise.resolve([]),
@@ -85,6 +87,7 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
     v.isStaff && !t.incident ? incidentsForCustomer(principal, t.customerId) : Promise.resolve([]),
     v.isStaff && !t.problem ? problemsForCustomer(principal, t.customerId) : Promise.resolve([]),
     v.isStaff ? aiCustomers([t.customerId]).then((s) => s.has(t.customerId)) : Promise.resolve(false),
+    v.isStaff ? ticketTime(principal, t.id) : Promise.resolve(null),
   ]);
   const linked = new Set(t.devices.map((d) => d.id));
   // Viewing a ticket clears its notifications.
@@ -286,6 +289,7 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
             enabled={attachmentsEnabled()}
             antivirus={antivirusConfigured()}
           />
+          {time && <TimeCard ticketId={t.id} entries={time.entries} totalMinutes={time.totalMinutes} billableMinutes={time.billableMinutes} />}
           {v.canChangeStatus.length > 0 && <StatusControls ticketId={t.id} version={t.version} status={t.status} options={v.canChangeStatus} staff={v.isStaff} />}
           {v.canAssign && (
             <StaffControls ticketId={t.id} version={t.version} assigneeUserId={t.assigneeUserId} queueId={t.queueId} priority={t.priority} staff={staff} queues={queues} />
