@@ -12,6 +12,7 @@ import { attachmentsEnabled } from "@/lib/attachments/storage";
 import { antivirusConfigured } from "@/lib/attachments/scan";
 import { AttachmentPanel } from "./attachments";
 import { TimeCard } from "./time";
+import { FieldsCard } from "./fields";
 import { ticketTime } from "@/lib/billing/service";
 import { ApprovalCard, TaskList } from "./request";
 import { HardwareCard } from "./hardware";
@@ -257,6 +258,7 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
               )}
             </dl>
           </section>
+          <FieldsCard ticketId={t.id} fields={t.fields} canEdit={v.isStaff} />
           {sla && (
             <section className="card tight" aria-labelledby="sla-h">
               <h2 id="sla-h" className="eyebrow">Service level · technicians only</h2>

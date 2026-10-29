@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { saveAnswersOnCreate, ticketFieldsTx, type FieldValue } from "../fields/service";
 import { asSystem, withUser, type Queryable } from "../db";
 import {
   canSeeOrgFor,
@@ -62,6 +63,8 @@ export interface TicketMessage {
 
 export interface TicketDetail extends TicketSummary {
   description: string;
+  /** Custom fields that apply (or have answers), as the viewer may see them. */
+  fields: FieldValue[];
   requesterUserId: string;
   assigneeUserId: string | null;
   queueId: string | null;
@@ -383,6 +386,7 @@ export async function getTicket(p: Principal, id: string): Promise<TicketDetail>
       requestData: (row.request_data as { label: string; value: string }[]) ?? null,
       approval,
       tasks,
+      fields: await ticketFieldsTx(tx, p, { id, customerId, category: row.category as string, kind: row.kind as string }),
       related,
       survey,
       hardware,
@@ -481,6 +485,10 @@ export async function createTicket(p: Principal, raw: unknown, idempotencyKey: s
     }
     await applySlaOnCreate(tx, ticket.id);
     if (opts.afterInsert) await opts.afterInsert(tx, ticket, customerId);
+    // Custom fields (Administration → Ticket fields); catalog requests have their own forms.
+    if (!opts.catalogItemId) {
+      await saveAnswersOnCreate(tx, p, { id: ticket.id, customerId, category: input.category }, input.fields, { enforceRequired: (opts.source ?? "portal") === "portal" });
+    }
     // Automatic assignment (Administration → Assignment rules); a no-op when nothing matches.
     await tx.query("select app_apply_assignment_rules($1)", [ticket.id]);
     if (opts.notify !== false) await emitTicketEvent(tx, ticket.id, "created");

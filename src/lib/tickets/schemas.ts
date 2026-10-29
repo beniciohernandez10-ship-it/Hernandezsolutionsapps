@@ -47,6 +47,8 @@ export const createTicketSchema = z.object({
   category: z.enum(CATEGORIES, { error: "Choose a category." }),
   customerId: z.uuid().optional(),
   deviceId: z.uuid().optional(),
+  /** Answers to custom fields, by field id (checked in fields/service). */
+  fields: z.record(z.string(), z.union([z.string(), z.boolean(), z.number()]).nullable()).optional(),
 });
 export type CreateTicketInput = z.infer<typeof createTicketSchema>;
 

@@ -2265,3 +2265,10 @@ label.btn[aria-disabled="true"] {
   margin: 0;
   max-width: 32ch;
 }
+
+/* Custom fields */
+.fields-form,
+.fields-card > .kv,
+.fields-card > .spread {
+  align-self: stretch;
+}

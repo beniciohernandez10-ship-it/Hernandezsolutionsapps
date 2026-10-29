@@ -7,6 +7,7 @@ import { listCatalog } from "@/lib/catalog/service";
 import { CATEGORY_LABEL } from "@/lib/tickets/schemas";
 import { NewTicketForm } from "./form";
 import { aiCustomers } from "@/lib/ai/service";
+import { fieldsForForm } from "@/lib/fields/service";
 
 export const metadata = { title: "New request" };
 
@@ -14,7 +15,7 @@ export default async function NewTicketPage() {
   const { principal } = await requirePrincipal("/portal/tickets/new");
   const orgs = principal.memberships.map((m) => ({ id: m.customerId, name: m.customerName }));
   const deviceCustomers = principal.memberships.filter((m) => canSeeOrgFor(principal, m.customerId));
-  const catalog = await listCatalog(principal);
+  const [catalog, fields] = await Promise.all([listCatalog(principal), fieldsForForm(principal)]);
   const aiOrgs = [...(await aiCustomers(orgs.map((o) => o.id)))];
   const devices = deviceCustomers.length ? (await listDevices(principal)).devices.map((d) => ({ id: d.id, name: d.name, customerId: d.customerId })) : [];
   return (
@@ -48,7 +49,7 @@ export default async function NewTicketPage() {
           )}
           <section aria-labelledby="problem-h" className="stack">
             <h2 id="problem-h">{catalog.length ? "Or report a problem" : "Report a problem"}</h2>
-            <NewTicketForm orgs={orgs} devices={devices} aiOrgs={aiOrgs} />
+            <NewTicketForm orgs={orgs} devices={devices} aiOrgs={aiOrgs} fields={fields} />
           </section>
         </>
       )}

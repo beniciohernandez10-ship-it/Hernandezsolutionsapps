@@ -5,12 +5,16 @@ import { useRouter } from "next/navigation";
 import { apiFetch, ApiError, fieldErrors } from "@/components/client-api";
 import { CATEGORIES, CATEGORY_LABEL, PRIORITIES, PRIORITY_LABEL } from "@/lib/tickets/schemas";
 import { IconAlert } from "@/components/icons";
+import { CustomFieldInput } from "@/components/custom-field-input";
+import { appliesTo, type FieldDef } from "@/lib/fields/kinds";
 
 interface Props {
   orgs: { id: string; name: string }[];
   devices: { id: string; name: string; customerId: string }[];
   /** Organizations with the AI assistant turned on. */
   aiOrgs?: string[];
+  /** Custom fields across the person's organizations; shown for the chosen organization and category. */
+  fields?: FieldDef[];
 }
 
 const PRIORITY_HELP: Record<string, string> = {
@@ -20,7 +24,7 @@ const PRIORITY_HELP: Record<string, string> = {
   urgent: "Business is stopped or a security issue",
 };
 
-export function NewTicketForm({ orgs, devices, aiOrgs = [] }: Props) {
+export function NewTicketForm({ orgs, devices, aiOrgs = [], fields = [] }: Props) {
   const router = useRouter();
   // One key per form instance: retries after a network error can't create duplicates.
   const [idempotencyKey] = useState(() => crypto.randomUUID());
@@ -29,6 +33,9 @@ export function NewTicketForm({ orgs, devices, aiOrgs = [] }: Props) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const visibleDevices = devices.filter((d) => d.customerId === customerId);
+  const [category, setCategory] = useState("general");
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const visibleFields = customerId ? fields.filter((f) => appliesTo(f, customerId, category)) : [];
   // Knowledge-base articles that might answer the request, refreshed as the person types.
   const [text, setText] = useState("");
   const [suggestions, setSuggestions] = useState<{ id: string; title: string; summary: string }[]>([]);
@@ -90,6 +97,7 @@ export function NewTicketForm({ orgs, devices, aiOrgs = [] }: Props) {
       category: String(fd.get("category") ?? ""),
       ...(customerId ? { customerId } : {}),
       ...(fd.get("deviceId") ? { deviceId: String(fd.get("deviceId")) } : {}),
+      ...(visibleFields.length ? { fields: Object.fromEntries(visibleFields.map((f) => [f.id, answers[f.id]?.trim() || null])) } : {}),
     };
     const local: Record<string, string> = {};
     if (body.title.trim().length < 3) local.title = "Give your request a short title (at least 3 characters).";
@@ -97,6 +105,7 @@ export function NewTicketForm({ orgs, devices, aiOrgs = [] }: Props) {
     if (!body.priority) local.priority = "Choose how urgent this is.";
     if (!body.category) local.category = "Choose a category.";
     if (!customerId) local.customerId = "Choose an organization.";
+    for (const f of visibleFields) if (f.required && !f.staffOnly && !answers[f.id]?.trim()) local[`fields.${f.id}`] = `Answer "${f.label}".`;
     setErrors(local);
     if (Object.keys(local).length) return;
     setBusy(true);
@@ -220,7 +229,7 @@ export function NewTicketForm({ orgs, devices, aiOrgs = [] }: Props) {
       <div className="form-grid two">
         <div className="field">
           <label htmlFor="category">Category</label>
-          <select id="category" name="category" className="select" defaultValue="general" aria-invalid={Boolean(errors.category)}>
+          <select id="category" name="category" className="select" value={category} onChange={(e) => setCategory(e.target.value)} aria-invalid={Boolean(errors.category)}>
             {CATEGORIES.map((c) => (
               <option key={c} value={c}>{CATEGORY_LABEL[c]}</option>
             ))}
@@ -239,6 +248,20 @@ export function NewTicketForm({ orgs, devices, aiOrgs = [] }: Props) {
           </div>
         )}
       </div>
+      {visibleFields.length > 0 && (
+        <div className="form-grid two">
+          {visibleFields.map((f) => (
+            <CustomFieldInput
+              key={f.id}
+              idPrefix="nf"
+              field={f}
+              value={answers[f.id] ?? ""}
+              onChange={(v) => setAnswers((x) => ({ ...x, [f.id]: v }))}
+              error={errors[`fields.${f.id}`]}
+            />
+          ))}
+        </div>
+      )}
       <div className="row">
         <button className="btn btn-primary" type="submit" disabled={busy}>
           {busy && <span className="spinner" aria-hidden />} {busy ? "Submitting…" : "Submit request"}

@@ -14,6 +14,7 @@ import { shipAuditEvents, verifyAuditStore } from "./audit/store";
 import { generateDueReports } from "./reports/monthly";
 import { enqueueMissingScans, scanAttachment } from "./attachments/scan";
 import { runMonitoringChecks, scheduleMonitoring } from "./monitoring/service";
+import { runDueRecurring, scheduleRecurring } from "./recurring/service";
 
 export { enqueue };
 
@@ -50,6 +51,7 @@ const handlers = new Map<string, Handler>([
   ["email.notification", (j) => sendNotificationEmail(j.payload)],
   ["email.ingest", (j) => ingestInboundEmail(String(j.payload.inboundId))],
   ["monitoring.check", () => runMonitoringChecks()],
+  ["recurring.run", () => runDueRecurring()],
   ["attachment.scan", (j) => scanAttachment(j.payload, { final: j.attempts >= j.max_attempts })],
   // One sweep for time-based ticket rules: SLA warnings/breaches and closing resolved tickets.
   [
@@ -180,6 +182,7 @@ export async function drainSoon(opts: { sweep?: boolean } = {}) {
     if (opts.sweep) {
       await scheduleSlaSweep();
       await scheduleMonitoring();
+      await scheduleRecurring();
     }
     await processJobs({ limit: 20, deadlineMs: 8_000 });
     await shipAuditEvents({ deadlineMs: 4_000 });
@@ -192,6 +195,7 @@ export async function cronTick() {
   await scheduleSyncs();
   await scheduleSlaSweep();
   await scheduleMonitoring();
+  await scheduleRecurring();
   const result = await processJobs();
   // Catch up on anything not sent after a request, then check the off-site chain once a day.
   await shipAuditEvents({ deadlineMs: 10_000 });

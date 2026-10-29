@@ -5,8 +5,9 @@ import { customersWhere, isStaffAnywhere, requireOperator, STAFF_ROLES, type Pri
 import { AppError, forbidden, notFound } from "../errors";
 import { enqueue } from "../jobs-queue";
 import { log } from "../log";
-import { applySlaOnCreate, applySlaTransition } from "../sla/service";
+import { applySlaTransition } from "../sla/service";
 import type { Category, Priority } from "../tickets/schemas";
+import { createSystemTicket, SYSTEM_USERS } from "../tickets/system";
 
 /**
  * Monitoring alerts become tickets.
@@ -22,7 +23,7 @@ import type { Category, Priority } from "../tickets/schemas";
  * running out), and external tools posting to /api/alerts/{sourceId}.
  */
 
-export const MONITORING_USER = "00000000-0000-4000-8000-0000000a1e47";
+export const MONITORING_USER = SYSTEM_USERS.monitoring;
 
 export type Severity = "info" | "warning" | "critical";
 export type AlertSource = "intune_compliance" | "device_stale" | "warranty" | "licenses" | "webhook";
@@ -77,26 +78,20 @@ async function openTicket(tx: Queryable, a: AlertInput, alertId: string) {
     "",
     "When the problem clears, this request is updated, and resolved if nobody has picked it up.",
   ].join("\n");
-  const t = await tx.query<{ id: string; number: string }>(
-    `insert into tickets (customer_id, requester_user_id, title, description, priority, category, source, kind)
-     values ($1, $2, $3, $4, $5, $6, 'monitoring', 'incident') returning id, number`,
-    // Tickets need a title of at least 3 characters; some tools send very short ones.
-    [a.customerId, MONITORING_USER, (a.title.trim().length >= 3 ? a.title.trim() : `Alert: ${a.title.trim()}`).slice(0, 200), description.slice(0, 20000), PRIORITY[a.severity], CATEGORY[a.source]],
-  );
-  const ticketId = t.rows[0].id;
-  await tx.query("insert into ticket_events (ticket_id, customer_id, actor_user_id, kind, to_value) values ($1, $2, null, 'created', 'open')", [
-    ticketId,
-    a.customerId,
-  ]);
-  if (a.deviceId) {
-    await tx.query("insert into ticket_devices (ticket_id, device_id, customer_id) values ($1, $2, $3) on conflict do nothing", [ticketId, a.deviceId, a.customerId]);
-  }
-  await applySlaOnCreate(tx, ticketId);
-  await tx.query("select app_apply_assignment_rules($1)", [ticketId]);
-  await enqueue(tx, "notify.ticket", a.customerId, { ticketId, event: "created", actorUserId: null, detail: null, ref: null });
-  await tx.query("update monitor_alerts set ticket_id = $2 where id = $1", [alertId, ticketId]);
-  await audit(tx, a.customerId, "monitoring.ticket", alertId, { ticketId, number: Number(t.rows[0].number), severity: a.severity });
-  return ticketId;
+  const t = await createSystemTicket(tx, {
+    customerId: a.customerId,
+    requesterId: MONITORING_USER,
+    source: "monitoring",
+    kind: "incident",
+    title: a.title,
+    description,
+    priority: PRIORITY[a.severity],
+    category: CATEGORY[a.source],
+    deviceId: a.deviceId,
+  });
+  await tx.query("update monitor_alerts set ticket_id = $2 where id = $1", [alertId, t.id]);
+  await audit(tx, a.customerId, "monitoring.ticket", alertId, { ticketId: t.id, number: t.number, severity: a.severity });
+  return t.id;
 }
 
 async function internalNote(tx: Queryable, ticketId: string, customerId: string, body: string) {

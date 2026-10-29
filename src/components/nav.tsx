@@ -19,6 +19,7 @@ import {
   IconPulse,
   IconReply,
   IconSearch,
+  IconSync,
 } from "./icons";
 
 const ICONS = {
@@ -38,6 +39,7 @@ const ICONS = {
   bell: IconBell,
   alert: IconAlert,
   reply: IconReply,
+  repeat: IconSync,
 };
 
 export type NavIcon = keyof typeof ICONS;
