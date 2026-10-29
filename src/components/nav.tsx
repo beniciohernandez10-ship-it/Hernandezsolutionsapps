@@ -3,6 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import {
+  IconAlert,
   IconBell,
   IconBook,
   IconCalendar,
@@ -35,6 +36,7 @@ const ICONS = {
   inbox: IconInbox,
   gear: IconGear,
   bell: IconBell,
+  alert: IconAlert,
   reply: IconReply,
 };
 

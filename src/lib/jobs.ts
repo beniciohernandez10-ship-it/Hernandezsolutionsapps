@@ -13,6 +13,7 @@ import { ingestInboundEmail } from "./email/inbound";
 import { shipAuditEvents, verifyAuditStore } from "./audit/store";
 import { generateDueReports } from "./reports/monthly";
 import { enqueueMissingScans, scanAttachment } from "./attachments/scan";
+import { runMonitoringChecks, scheduleMonitoring } from "./monitoring/service";
 
 export { enqueue };
 
@@ -48,6 +49,7 @@ const handlers = new Map<string, Handler>([
   ["notify.change", (j) => fanOutChangeEvent(j.payload)],
   ["email.notification", (j) => sendNotificationEmail(j.payload)],
   ["email.ingest", (j) => ingestInboundEmail(String(j.payload.inboundId))],
+  ["monitoring.check", () => runMonitoringChecks()],
   ["attachment.scan", (j) => scanAttachment(j.payload, { final: j.attempts >= j.max_attempts })],
   // One sweep for time-based ticket rules: SLA warnings/breaches and closing resolved tickets.
   [
@@ -175,7 +177,10 @@ export async function housekeeping() {
  */
 export async function drainSoon(opts: { sweep?: boolean } = {}) {
   try {
-    if (opts.sweep) await scheduleSlaSweep();
+    if (opts.sweep) {
+      await scheduleSlaSweep();
+      await scheduleMonitoring();
+    }
     await processJobs({ limit: 20, deadlineMs: 8_000 });
     await shipAuditEvents({ deadlineMs: 4_000 });
   } catch (err) {
@@ -186,6 +191,7 @@ export async function drainSoon(opts: { sweep?: boolean } = {}) {
 export async function cronTick() {
   await scheduleSyncs();
   await scheduleSlaSweep();
+  await scheduleMonitoring();
   const result = await processJobs();
   // Catch up on anything not sent after a request, then check the off-site chain once a day.
   await shipAuditEvents({ deadlineMs: 10_000 });

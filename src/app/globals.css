@@ -2003,6 +2003,13 @@ label.btn[aria-disabled="true"] {
   text-align: right;
 }
 
+/* Number boxes inside a .check label (which sizes checkboxes to 18px). */
+.check input.monitor-days {
+  width: 5rem;
+  height: auto;
+  min-height: 32px;
+}
+
 /* ------------------------------------------------------------------ hardware orders */
 .hw-steps {
   list-style: none;

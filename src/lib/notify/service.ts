@@ -145,7 +145,7 @@ export function recipientsFor(
 async function deliver(tx: Queryable, c: TicketContext, recipients: Recipient[], actorUserId: string | null, detail: string | null) {
   if (recipients.length === 0) return 0;
   const prefs = await tx.query<Record<string, unknown>>(
-    `select u.id, u.email, u.is_demo, p.email_enabled, p.email_ticket_updates, p.email_new_tickets, p.email_assignments, p.email_sla
+    `select u.id, u.email, u.is_demo, u.is_system, p.email_enabled, p.email_ticket_updates, p.email_new_tickets, p.email_assignments, p.email_sla
        from users u left join notification_preferences p on p.user_id = u.id where u.id = any($1::uuid[])`,
     [recipients.map((r) => r.userId)],
   );
@@ -157,7 +157,7 @@ async function deliver(tx: Queryable, c: TicketContext, recipients: Recipient[],
     );
     const u = byId.get(r.userId);
     // Missing preference row = defaults (all on). Demo users have example.com addresses and are never emailed.
-    const wants = u && !u.is_demo && u.email_enabled !== false && u[r.pref] !== false && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(u.email));
+    const wants = u && !u.is_demo && !u.is_system && u.email_enabled !== false && u[r.pref] !== false && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(u.email));
     if (wants && emailSendingEnabled()) await enqueue(tx, "email.notification", c.customerId, { notificationId: n.rows[0].id, category: r.pref }, `email:${n.rows[0].id}`);
   }
   return recipients.length;
@@ -429,7 +429,7 @@ export async function fanOutChangeEvent(payload: unknown) {
     const recipients = ids.filter((u) => u !== p.actorUserId && !seen.has(u) && seen.add(u));
     if (!recipients.length) return 0;
     const prefs = await tx.query<Record<string, unknown>>(
-      `select u.id, u.email, u.is_demo, p.email_enabled, p.email_ticket_updates from users u
+      `select u.id, u.email, u.is_demo, u.is_system, p.email_enabled, p.email_ticket_updates from users u
          left join notification_preferences p on p.user_id = u.id where u.id = any($1::uuid[])`,
       [recipients],
     );
@@ -440,7 +440,7 @@ export async function fanOutChangeEvent(payload: unknown) {
         [userId, c.customer_id, c.id, p.event, p.actorUserId, p.detail ?? null],
       );
       const u = byId.get(userId);
-      const wants = u && !u.is_demo && u.email_enabled !== false && u.email_ticket_updates !== false && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(u.email));
+      const wants = u && !u.is_demo && !u.is_system && u.email_enabled !== false && u.email_ticket_updates !== false && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(u.email));
       if (wants && emailSendingEnabled()) await enqueue(tx, "email.notification", c.customer_id, { notificationId: n.rows[0].id, category: "email_ticket_updates" }, `email:${n.rows[0].id}`);
     }
     return recipients.length;

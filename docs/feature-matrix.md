@@ -65,6 +65,7 @@
 | Reports | Monthly service report per client: volume, response/resolution medians, categories, priorities, top requesters | Implemented | /portal/reports; print/PDF; client admins see their own without SLA or comments |
 | | SLA attainment, survey comments, CSV export | Implemented | Technicians only; CSV formulas neutralised |
 | Monthly client reports | Per client and month: every resolved request with how it was solved, who solved it, target met/missed; categories, urgency, technicians; still-open list | Implemented | Administration → Monthly reports; created automatically after each month ends and saved; print/PDF and CSV; operators only |
+| Monitoring | Alerts become requests: Intune compliance, devices not checking in, warranties ending, no spare licenses; external tools by webhook | Implemented | monitoring-alerts.md; one request per problem, repeats counted, auto-resolve when cleared if untouched |
 | Time and billing | Time on requests (timer, presets, billable flag), general work, weekly timesheet | Implemented | time-billing.md; edit own until invoiced, service managers correct |
 | | Client plans (retainer, block of hours, hourly) with per-entry rounding; monthly billing, CSV export, finalize/reopen locks time | Implemented | Administration → Billing; client admins see hours used, never amounts |
 | Surveys | Requester rates a resolved request (👍/👎 + comment), changeable until closed | Implemented | RLS-enforced |

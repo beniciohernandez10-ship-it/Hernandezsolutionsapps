@@ -57,6 +57,7 @@ export default async function PortalLayout({ children }: { children: React.React
         { href: "/portal/tickets", label: caps.staff ? "Tickets" : "My requests", icon: "list" },
         ...(caps.staff ? [{ href: "/portal/queues", label: "Queues", icon: "layers" as const }] : []),
         ...(caps.staff ? [{ href: "/portal/time", label: "Timesheet", icon: "clock" as const }] : []),
+        ...(caps.staff ? [{ href: "/portal/alerts", label: "Alerts", icon: "alert" as const }] : []),
         ...(caps.canCreate ? [{ href: "/portal/tickets/new", label: "New request", icon: "plus" as const }] : []),
         ...(member ? [{ href: "/portal/notifications", label: "Notifications", icon: "bell" as const, count: unread }] : []),
       ],
