@@ -2,12 +2,13 @@ import { z } from "zod";
 import { asSystem, withUser, type Queryable } from "../db";
 import { isStaffFor, requireMember, requireOperator, type Principal } from "../authz";
 import { AppError, forbidden, notFound } from "../errors";
-import { emitTicketEvent } from "../notify/service";
 import { createTicket } from "../tickets/service";
 import { CATEGORIES, PRIORITIES, type Category, type Priority } from "../tickets/schemas";
 import { describeAnswers, fieldsSchema, validateAnswers, type CatalogField } from "./fields";
-import { canApproveRequest, requestApprovers } from "./read";
-import { cancelHardwareOrder, openHardwareOrder, sendToOrdering } from "../hardware/service";
+import { openHardwareOrder } from "../hardware/service";
+import { applicableSteps, startApprovals, stepsSchema, type ApprovalStep } from "./workflow";
+
+export { decideApproval, decisionSchema, pendingApprovals } from "./workflow";
 
 /**
  * Service catalog. A catalog request is a ticket of kind "request" with the
@@ -28,6 +29,8 @@ export interface CatalogItem {
   fields: CatalogField[];
   tasks: string[];
   requiresApproval: boolean;
+  /** Approval steps in order (empty: one step with the company's usual approvers, if requiresApproval). */
+  approvalSteps: ApprovalStep[];
   /** "hardware": approve -> order -> receive and register -> deliver. */
   workflow: "standard" | "hardware";
   active: boolean;
@@ -44,7 +47,8 @@ function toItem(r: Record<string, unknown>): CatalogItem {
     defaultPriority: r.default_priority as Priority,
     fields: (r.fields as CatalogField[]) ?? [],
     tasks: (r.tasks as string[]) ?? [],
-    requiresApproval: Boolean(r.requires_approval),
+    requiresApproval: Boolean(r.requires_approval) || ((r.approval_steps as ApprovalStep[]) ?? []).length > 0,
+    approvalSteps: (r.approval_steps as ApprovalStep[]) ?? [],
     workflow: r.workflow === "hardware" ? "hardware" : "standard",
     active: Boolean(r.active),
     sortOrder: Number(r.sort_order),
@@ -98,7 +102,8 @@ export async function submitRequest(p: Principal, itemId: string, raw: unknown, 
   const notes = input.notes?.trim() || undefined;
   const requestData = [...answers.map(({ label, value }) => ({ label, value })), ...(notes ? [{ label: "Anything else", value: notes }] : [])];
 
-  return createTicket(
+  const steps = applicableSteps(item, answers);
+  const result = await createTicket(
     p,
     {
       title,
@@ -114,90 +119,24 @@ export async function submitRequest(p: Principal, itemId: string, raw: unknown, 
       requestData,
       afterInsert: async (tx, ticket, cust) => {
         const hardware = item.workflow === "hardware";
-        if (!item.requiresApproval) {
+        if (!steps.length) {
           await createTasks(tx, ticket.id);
           if (hardware) await openHardwareOrder(tx, p, ticket.id, cust, true);
           return;
         }
-        const approvers = await requestApprovers(tx, cust);
-        await tx.query("insert into approvals (ticket_id, customer_id, requested_by) values ($1, $2, $3)", [ticket.id, cust, p.userId]);
-        if (canApproveRequest(p, cust, approvers)) {
-          // The person who would approve it asked for it: approved on submission.
-          await tx.query(
-            "update approvals set status = 'approved', decided_by = $2, decided_at = now(), note = 'Requested by an approver' where ticket_id = $1 and status = 'pending'",
-            [ticket.id, p.userId],
-          );
-          await tx.query("update tickets set approval_status = 'approved' where id = $1", [ticket.id]);
-          await createTasks(tx, ticket.id);
-          if (hardware) await openHardwareOrder(tx, p, ticket.id, cust, true);
-        } else {
-          if (hardware) await openHardwareOrder(tx, p, ticket.id, cust, false);
-          await tx.query("update tickets set approval_status = 'pending' where id = $1", [ticket.id]);
-          await tx.query(
-            "insert into ticket_events (ticket_id, customer_id, actor_user_id, kind) values ($1, $2, $3, 'approval_requested')",
-            [ticket.id, cust, p.userId],
-          );
-          await emitTicketEvent(tx, ticket.id, "approval_requested");
-        }
+        // Approvers are asked right after the ticket is saved (startApprovals), from the plan fixed here.
+        if (hardware) await openHardwareOrder(tx, p, ticket.id, cust, false);
+        await tx.query("update tickets set approval_status = 'pending', approval_plan = $2 where id = $1", [ticket.id, JSON.stringify(steps)]);
+        await tx.query("insert into ticket_events (ticket_id, customer_id, actor_user_id, kind) values ($1, $2, $3, 'approval_requested')", [
+          ticket.id,
+          cust,
+          p.userId,
+        ]);
       },
     },
   );
-}
-
-export const decisionSchema = z.object({
-  decision: z.enum(["approved", "rejected"]),
-  note: z.string().trim().max(2000).optional(),
-});
-
-export async function decideApproval(p: Principal, ticketId: string, raw: unknown) {
-  const input = decisionSchema.parse(raw);
-  if (input.decision === "rejected" && !input.note) throw new AppError(422, "validation_failed", "Say why, so the requester knows what to do next.", { field: "note" });
-  return withUser(p.userId, async (tx) => {
-    const t = await tx.query<{ id: string; customer_id: string; catalog_item_id: string | null; status: string }>(
-      "select id, customer_id, catalog_item_id, status from tickets where id = $1",
-      [ticketId],
-    );
-    const ticket = t.rows[0];
-    if (!ticket || !p.memberships.some((m) => m.customerId === ticket.customer_id)) throw notFound("Ticket");
-    if (!canApproveRequest(p, ticket.customer_id, await requestApprovers(tx, ticket.customer_id))) {
-      throw forbidden("Only your organization's approvers can approve requests.");
-    }
-    const a = await tx.query(
-      "update approvals set status = $2, decided_by = $3, decided_at = now(), note = $4 where ticket_id = $1 and status = 'pending' returning id",
-      [ticketId, input.decision, p.userId, input.note ?? null],
-    );
-    if (!a.rowCount) throw new AppError(409, "invalid_transition", "This request isn't waiting for approval.");
-    // Hardware: hand it to the ordering queue first; a named approver may only change the ticket while it is still pending.
-    if (input.decision === "approved") await sendToOrdering(tx, p, ticketId, ticket.customer_id);
-    else await cancelHardwareOrder(tx, ticketId);
-    await tx.query(
-      `update tickets set approval_status = $2, updated_at = now(), version = version + 1
-         ${input.decision === "rejected" ? ", status = 'resolved', resolved_at = now(), resolution_note = $3" : ""} where id = $1`,
-      input.decision === "rejected" ? [ticketId, input.decision, `Not approved: ${input.note}`] : [ticketId, input.decision],
-    );
-    await tx.query("insert into ticket_events (ticket_id, customer_id, actor_user_id, kind, to_value) values ($1, $2, $3, $4, $5)", [
-      ticketId,
-      ticket.customer_id,
-      p.userId,
-      input.decision,
-      input.note ? "with a note" : null,
-    ]);
-    if (input.note) {
-      await tx.query("insert into ticket_messages (ticket_id, customer_id, author_user_id, visibility, body) values ($1, $2, $3, 'public', $4)", [
-        ticketId,
-        ticket.customer_id,
-        p.userId,
-        `${input.decision === "approved" ? "Approved" : "Not approved"}: ${input.note}`,
-      ]);
-    }
-    if (input.decision === "approved") await createTasks(tx, ticketId);
-    await tx.query(
-      "insert into audit_events (actor_user_id, customer_id, action, target_type, target_id, details) values ($1, $2, 'ticket.approval', 'ticket', $3, $4)",
-      [p.userId, ticket.customer_id, ticketId, JSON.stringify({ decision: input.decision })],
-    );
-    await emitTicketEvent(tx, ticketId, "approval_decided", input.decision);
-    return { approvalStatus: input.decision };
-  });
+  if (steps.length && !result.replayed) await startApprovals(result.id, p);
+  return result;
 }
 
 // ---------------------------------------------------------------- tasks
@@ -244,29 +183,6 @@ export async function setTaskDone(p: Principal, ticketId: string, taskId: string
   });
 }
 
-/** Requests waiting for this person's decision. */
-export async function pendingApprovals(p: Principal) {
-  const mine = [
-    ...new Set([...p.memberships.filter((m) => m.role === "client_admin" || m.role === "service_manager").map((m) => m.customerId), ...(p.approverFor ?? [])]),
-  ];
-  if (!mine.length) return [];
-  return withUser(p.userId, async (tx) => {
-    const r = await tx.query<{ id: string; number: string; title: string; customer_id: string; name: string; display_name: string; created_at: string }>(
-      `select t.id, t.number, t.title, t.customer_id, c.name, u.display_name, a.created_at
-         from approvals a join tickets t on t.id = a.ticket_id join customers c on c.id = t.customer_id join users u on u.id = t.requester_user_id
-        where a.status = 'pending' and a.customer_id = any($1::uuid[]) order by a.created_at`,
-      [mine],
-    );
-    const out = [];
-    for (const x of r.rows) {
-      if (canApproveRequest(p, x.customer_id, await requestApprovers(tx, x.customer_id))) {
-        out.push({ ticketId: x.id, number: Number(x.number), title: x.title, customerName: x.name, requesterName: x.display_name, requestedAt: new Date(x.created_at).toISOString() });
-      }
-    }
-    return out;
-  });
-}
-
 // ---------------------------------------------------------------- operator management
 
 export const catalogItemSchema = z.object({
@@ -278,6 +194,7 @@ export const catalogItemSchema = z.object({
   fields: fieldsSchema,
   tasks: z.array(z.string().trim().min(1).max(200)).max(40),
   requiresApproval: z.boolean(),
+  approvalSteps: stepsSchema.default([]),
   workflow: z.enum(["standard", "hardware"]).default("standard"),
   active: z.boolean(),
   sortOrder: z.number().int().min(0).max(10000),
@@ -292,16 +209,19 @@ export async function saveCatalogItem(p: Principal, id: string | null, raw: unkn
   requireOperator(p);
   const v = catalogItemSchema.parse(raw);
   return asSystem(async (tx) => {
-    const params = [v.customerId, v.name, v.summary, v.category, v.defaultPriority, JSON.stringify(v.fields), JSON.stringify(v.tasks), v.requiresApproval, v.active, v.sortOrder, v.workflow];
+        const fieldLabels = new Set(v.fields.map((f) => f.label.trim().toLowerCase()));
+    const missing = v.approvalSteps.find((st) => st.condition && !fieldLabels.has(st.condition.field.trim().toLowerCase()));
+    if (missing) throw new AppError(422, "validation_failed", `"${missing.name}" depends on a question this form doesn't have: ${missing.condition!.field}.`, { field: "approvalSteps" });
+    const params = [v.customerId, v.name, v.summary, v.category, v.defaultPriority, JSON.stringify(v.fields), JSON.stringify(v.tasks), v.requiresApproval || v.approvalSteps.length > 0, v.active, v.sortOrder, v.workflow, JSON.stringify(v.approvalSteps)];
     const r = id
       ? await tx.query<{ id: string }>(
           `update catalog_items set customer_id = $2, name = $3, summary = $4, category = $5, default_priority = $6, fields = $7, tasks = $8,
-                  requires_approval = $9, active = $10, sort_order = $11, workflow = $12, updated_at = now() where id = $1 returning id`,
+                  requires_approval = $9, active = $10, sort_order = $11, workflow = $12, approval_steps = $13, updated_at = now() where id = $1 returning id`,
           [id, ...params],
         )
       : await tx.query<{ id: string }>(
-          `insert into catalog_items (customer_id, name, summary, category, default_priority, fields, tasks, requires_approval, active, sort_order, workflow)
-           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) returning id`,
+          `insert into catalog_items (customer_id, name, summary, category, default_priority, fields, tasks, requires_approval, active, sort_order, workflow, approval_steps)
+           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) returning id`,
           params,
         );
     if (!r.rows[0]) throw notFound("Request type");

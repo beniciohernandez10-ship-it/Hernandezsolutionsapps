@@ -37,12 +37,53 @@ function ErrorLine({ error }: { error: string | null }) {
   ) : null;
 }
 
+const SLOT_STATUS: Record<string, string> = { approved: "Approved", rejected: "Not approved", pending: "Waiting", cancelled: "Not needed" };
+
+function StepList({ approval }: { approval: ApprovalInfo }) {
+  if (approval.steps.length < 2 && approval.steps[0]?.slots.length < 2) return null;
+  return (
+    <ol className="approval-steps" role="list">
+      {approval.steps.map((s) => (
+        <li key={s.index} className={`approval-step is-${s.state}`}>
+          <span className="approval-step-name">
+            {s.state === "done" ? <IconCheck size={14} /> : s.state === "rejected" ? <IconAlert size={14} /> : <IconClock size={14} />} {s.name}
+            {s.slots.length > 1 && <span className="subtle"> · {s.mode === "all" ? "all must approve" : "any one"}</span>}
+          </span>
+          {s.slots.length > 0 && (
+            <ul className="plain-list" role="list">
+              {s.slots.map((x) => (
+                <li key={x.id} className="subtle">
+                  {x.label}: {SLOT_STATUS[x.status]}
+                  {x.decidedBy && x.status !== "pending" && x.status !== "cancelled" && (
+                    <>
+                      {" "}
+                      by {x.decidedBy}
+                      {x.onBehalfOf && <> for {x.onBehalfOf}</>}
+                      {x.via === "email" && " (by email)"}
+                    </>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+          {s.state === "upcoming" && <span className="subtle">Next, once the step before is approved.</span>}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 export function ApprovalCard({ ticketId, approval }: { ticketId: string; approval: ApprovalInfo }) {
   const r = useRun();
   const [note, setNote] = useState("");
   const [rejecting, setRejecting] = useState(false);
   const decide = (decision: "approved" | "rejected") =>
-    r.run(() => apiFetch(`/api/tickets/${ticketId}/approval`, { method: "POST", body: { decision, ...(note.trim() ? { note: note.trim() } : {}) } }));
+    r.run(() =>
+      apiFetch(`/api/tickets/${ticketId}/approval`, {
+        method: "POST",
+        body: { decision, ...(note.trim() ? { note: note.trim() } : {}), ...(approval.approvalId ? { approvalId: approval.approvalId } : {}) },
+      }),
+    );
 
   if (approval.status !== "pending") {
     return (
@@ -55,17 +96,22 @@ export function ApprovalCard({ ticketId, approval }: { ticketId: string; approva
           {approval.decidedAt && <> · <Time iso={approval.decidedAt} /></>}
         </p>
         {approval.note && <p className="subtle prewrap">{approval.note}</p>}
+        <StepList approval={approval} />
       </section>
     );
   }
+  const current = approval.steps.find((s) => s.state === "current");
   return (
     <section className="card tight stack" aria-labelledby="approval-h">
       <h2 id="approval-h" className="eyebrow">Approval</h2>
       <p>
-        <IconClock size={14} /> <strong>Waiting for approval</strong> from {approval.approverLabel}.
+        <IconClock size={14} /> <strong>Waiting for approval</strong>
+        {current && approval.steps.length > 1 && <> ({current.name}, step {current.index + 1} of {approval.steps.length})</>} from {approval.approverLabel}.
       </p>
+      <StepList approval={approval} />
       {approval.canDecide && (
         <>
+          {approval.onBehalfOfName && <p className="subtle">You&apos;re deciding for {approval.onBehalfOfName}, who delegated their approvals to you.</p>}
           <div className="field">
             <label htmlFor="approval-note">{rejecting ? "Reason (the requester sees this)" : "Note (optional)"}</label>
             <textarea id="approval-note" className="textarea" rows={2} maxLength={2000} value={note} onChange={(e) => setNote(e.target.value)} />

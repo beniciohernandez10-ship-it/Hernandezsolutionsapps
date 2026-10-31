@@ -2348,3 +2348,30 @@ th.num {
 .fields-card > .spread {
   align-self: stretch;
 }
+
+/* Approval workflows */
+.approval-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+}
+.approval-step {
+  display: grid;
+  gap: 2px;
+  padding-left: var(--space-2);
+  border-left: 2px solid var(--color-border);
+}
+.approval-step.is-current {
+  border-left-color: var(--color-accent);
+}
+.approval-step.is-upcoming .approval-step-name {
+  color: var(--color-text-muted);
+}
+.workflow-step > .grid,
+.workflow-step > .spread,
+.delegation-list .spread {
+  align-self: stretch;
+}

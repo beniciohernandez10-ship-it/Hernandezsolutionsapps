@@ -127,8 +127,9 @@ async function audit(
 
 /**
  * Builds the explicit visibility predicate for the principal (in addition to
- * RLS): the whole company for org roles, own tickets for requesters, and for
- * named approvers the requests that went through approval.
+ * RLS): the whole company for org roles, own tickets for requesters, for
+ * named approvers the requests that went through approval, and for anyone
+ * else the requests they're asked to approve (see app_is_ticket_approver).
  */
 function scopeClause(p: Principal, params: unknown[]) {
   const org = customersWhere(p, (r) => ORG_ROLES.includes(r));
@@ -136,7 +137,8 @@ function scopeClause(p: Principal, params: unknown[]) {
   params.push(org, own, p.userId, p.approverFor ?? []);
   const n = params.length;
   return `(t.customer_id = any($${n - 3}::uuid[]) or (t.customer_id = any($${n - 2}::uuid[]) and t.requester_user_id = $${n - 1})
-    or (t.customer_id = any($${n}::uuid[]) and exists (select 1 from approvals ap where ap.ticket_id = t.id)))`;
+    or (t.customer_id = any($${n}::uuid[]) and exists (select 1 from approvals ap where ap.ticket_id = t.id))
+    or app_is_ticket_approver(t.id))`;
 }
 
 const SUMMARY_COLUMNS = `

@@ -6,6 +6,7 @@ import { IconAlert, IconCheck } from "@/components/icons";
 import { CATEGORIES, CATEGORY_LABEL, PRIORITIES, PRIORITY_LABEL } from "@/lib/tickets/schemas";
 import { FIELD_TYPES, type CatalogField, type FieldType } from "@/lib/catalog/fields";
 import type { CatalogItem } from "@/lib/catalog/service";
+import { StepsEditor, type Candidate } from "./steps";
 
 const TYPE_LABEL: Record<FieldType, string> = {
   text: "Short text",
@@ -37,12 +38,13 @@ const blank = (): Draft => ({
   fields: [{ key: "details", label: "Details", type: "textarea", required: true }],
   tasks: [],
   requiresApproval: false,
+  approvalSteps: [],
   workflow: "standard",
   active: true,
   sortOrder: 100,
 });
 
-function Editor({ initial, customers, onClose }: { initial: Draft; customers: { id: string; name: string }[]; onClose: () => void }) {
+function Editor({ initial, customers, candidates, onClose }: { initial: Draft; customers: { id: string; name: string }[]; candidates: Candidate[]; onClose: () => void }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [d, setD] = useState<Draft>(initial);
@@ -74,6 +76,7 @@ function Editor({ initial, customers, onClose }: { initial: Draft; customers: { 
       fields: d.fields.map((f) => ({ ...f, options: f.type === "select" ? f.options : undefined, help: f.help || undefined })),
       tasks: tasks.split("\n").map((t) => t.trim()).filter(Boolean),
       requiresApproval: d.requiresApproval,
+      approvalSteps: d.approvalSteps.map((st) => ({ ...st, name: st.name.trim() || "Approval" })),
       workflow: d.workflow,
       active: d.active,
       sortOrder: d.sortOrder,
@@ -197,6 +200,17 @@ function Editor({ initial, customers, onClose }: { initial: Draft; customers: { 
         </button>
       </fieldset>
 
+      {(d.requiresApproval || d.approvalSteps.length > 0) && (
+        <StepsEditor
+          steps={d.approvalSteps}
+          onChange={(st) => set("approvalSteps", st)}
+          questions={d.fields.map((f) => f.label.trim()).filter(Boolean)}
+          candidates={candidates}
+          customerId={d.customerId}
+          idPrefix={k}
+        />
+      )}
+
       <div className="field">
         <label htmlFor={`t-${k}`}>Technician checklist (one task per line)</label>
         <textarea id={`t-${k}`} className="textarea" rows={5} value={tasks} onChange={(e) => setTasks(e.target.value)} />
@@ -232,7 +246,7 @@ function Editor({ initial, customers, onClose }: { initial: Draft; customers: { 
   );
 }
 
-export function CatalogConsole({ items, customers }: { items: CatalogItem[]; customers: { id: string; name: string }[] }) {
+export function CatalogConsole({ items, customers, candidates }: { items: CatalogItem[]; customers: { id: string; name: string }[]; candidates: Candidate[] }) {
   const [open, setOpen] = useState<string | null>(null);
   const customerName = (id: string | null) => (id ? (customers.find((c) => c.id === id)?.name ?? "One customer") : "All customers");
   return (
@@ -245,7 +259,7 @@ export function CatalogConsole({ items, customers }: { items: CatalogItem[]; cus
                 <strong>{i.name}</strong>
                 <p className="subtle">
                   {customerName(i.customerId)} · {i.fields.length} questions · {i.tasks.length} tasks
-                  {i.requiresApproval ? " · needs approval" : ""}
+                  {i.approvalSteps.length > 1 ? ` · ${i.approvalSteps.length} approval steps` : i.requiresApproval ? " · needs approval" : ""}
                   {i.workflow === "hardware" ? " · hardware order" : ""}
                   {i.active ? "" : " · hidden"}
                 </p>
@@ -254,14 +268,14 @@ export function CatalogConsole({ items, customers }: { items: CatalogItem[]; cus
                 <button type="button" className="btn" onClick={() => setOpen(i.id)}>Edit</button>
               )}
             </div>
-            {open === i.id && <Editor initial={{ ...i, id: i.id }} customers={customers} onClose={() => setOpen(null)} />}
+            {open === i.id && <Editor initial={{ ...i, id: i.id }} customers={customers} candidates={candidates} onClose={() => setOpen(null)} />}
           </li>
         ))}
       </ul>
       {open === "new" ? (
         <div className="card stack">
           <h2>New request type</h2>
-          <Editor initial={blank()} customers={customers} onClose={() => setOpen(null)} />
+          <Editor initial={blank()} customers={customers} candidates={candidates} onClose={() => setOpen(null)} />
         </div>
       ) : (
         <button type="button" className="btn" onClick={() => setOpen("new")}>Add a request type</button>

@@ -13,6 +13,7 @@ import { antivirusConfigured } from "@/lib/attachments/scan";
 import { AttachmentPanel } from "./attachments";
 import { TimeCard } from "./time";
 import { FieldsCard } from "./fields";
+import { myApprovalTurn } from "@/lib/catalog/workflow";
 import { ticketTime } from "@/lib/billing/service";
 import { ApprovalCard, TaskList } from "./request";
 import { HardwareCard } from "./hardware";
@@ -92,6 +93,9 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
     v.isStaff ? aiCustomers([t.customerId]).then((s) => s.has(t.customerId)) : Promise.resolve(false),
     v.isStaff ? ticketTime(principal, t.id) : Promise.resolve(null),
   ]);
+  // Whether this person decides the current approval step (possibly standing in for someone).
+  const turn = t.approval?.status === "pending" ? await myApprovalTurn(principal, t.id) : null;
+  const approval = t.approval ? { ...t.approval, canDecide: t.approval.canDecide || Boolean(turn), approvalId: turn?.approvalId, onBehalfOfName: turn?.onBehalfOfName ?? null } : null;
   const linked = new Set(t.devices.map((d) => d.id));
   // Viewing a ticket clears its notifications.
   await markRead(principal, { ticketId: t.id }).catch(() => 0);
@@ -225,7 +229,7 @@ export default async function TicketPage({ params, searchParams }: { params: Pro
           <IncidentCard ticketId={t.id} incident={t.incident} options={incidentOptions} canEdit={v.isStaff} />
           {v.isStaff && <ProblemCard ticketId={t.id} problem={t.problem} options={problemOptions} />}
           <SurveyCard ticketId={t.id} survey={t.survey} canRate={v.canRate} staff={v.isStaff} />
-          {t.approval && <ApprovalCard ticketId={t.id} approval={t.approval} />}
+          {approval && <ApprovalCard ticketId={t.id} approval={approval} />}
           {t.hardware && (
             <HardwareCard
               ticketId={t.id}

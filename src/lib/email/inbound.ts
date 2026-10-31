@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { decideApproval, parseEmailDecision } from "../catalog/workflow";
 import { z } from "zod";
 import { asSystem, withUser } from "../db";
 import { loadPrincipal, isStaffFor, type Principal } from "../authz";
@@ -185,8 +186,8 @@ export async function ingestInboundEmail(inboundId: string) {
 
   const match = await asSystem(async (tx) =>
     (
-      await tx.query<{ ticket_id: string; user_id: string; email: string; status: string }>(
-        `select r.ticket_id, r.user_id, u.email, u.status from email_reply_tokens r join users u on u.id = r.user_id
+      await tx.query<{ ticket_id: string; user_id: string; email: string; status: string; approval_id: string | null }>(
+        `select r.ticket_id, r.user_id, u.email, u.status, r.approval_id from email_reply_tokens r join users u on u.id = r.user_id
           where r.token_hash = $1 and r.expires_at > now()`,
         [hashReplyToken(token)],
       )
@@ -203,6 +204,22 @@ export async function ingestInboundEmail(inboundId: string) {
   if (!body) return setStatus(inboundId, "needs_review", { reason: "No reply text found above the quoted message.", ticketId: match.ticket_id });
   const p = await asSystem((tx) => loadPrincipal(tx, match.user_id));
   if (!p) return setStatus(inboundId, "needs_review", { reason: "The sender's account is disabled.", body, ticketId: match.ticket_id });
+
+  if (match.approval_id) {
+    // A reply to an approval request decides it.
+    const decision = parseEmailDecision(body);
+    if (!decision) {
+      return setStatus(inboundId, "needs_review", { reason: "Couldn't tell whether this approves or rejects. Start the reply with approve or reject.", body, ticketId: match.ticket_id, userId: p.userId });
+    }
+    try {
+      await decideApproval(p, match.ticket_id, { ...decision, approvalId: match.approval_id }, "email");
+      await setStatus(inboundId, "attached", { ticketId: match.ticket_id, userId: p.userId, reason: decision.decision === "approved" ? "Approved by email" : "Rejected by email" });
+      return { attached: true };
+    } catch (err) {
+      if (err instanceof AppError) return setStatus(inboundId, "needs_review", { reason: err.message, body, ticketId: match.ticket_id, userId: p.userId });
+      throw err;
+    }
+  }
 
   try {
     const m = await addMessage(p, match.ticket_id, { body, visibility: "public" }, { source: "email" });

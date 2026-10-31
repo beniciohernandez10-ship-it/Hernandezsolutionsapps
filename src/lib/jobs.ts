@@ -16,6 +16,7 @@ import { enqueueMissingScans, scanAttachment } from "./attachments/scan";
 import { runMonitoringChecks, scheduleMonitoring } from "./monitoring/service";
 import { runDueRecurring, scheduleRecurring } from "./recurring/service";
 import { sendReportEmail } from "./reports/emails";
+import { repairApprovals } from "./catalog/workflow";
 
 export { enqueue };
 
@@ -198,6 +199,7 @@ export async function cronTick() {
   await scheduleSlaSweep();
   await scheduleMonitoring();
   await scheduleRecurring();
+  await repairApprovals().catch((err) => log.error("approvals.repair_failed", { error: errorSummary(err) }));
   const result = await processJobs();
   // Catch up on anything not sent after a request, then check the off-site chain once a day.
   await shipAuditEvents({ deadlineMs: 10_000 });

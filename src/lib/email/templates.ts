@@ -106,6 +106,8 @@ export interface NotificationEmailInput {
   unsubscribeLabel: string;
   /** True when replying to this email adds a public reply to the ticket. */
   replyEnabled: boolean;
+  /** Replying decides an approval instead ("approve" / "reject <reason>"). */
+  approvalReply?: boolean;
 }
 
 export function renderNotificationEmail(i: NotificationEmailInput) {
@@ -114,7 +116,11 @@ export function renderNotificationEmail(i: NotificationEmailInput) {
   const shortRef = i.refLabel ? i.refLabel.replace(/^Change /, "") : `#${i.ticketNumber}`;
   const subject = `[${shortRef}] ${title} · ${SUBJECT_SUFFIX[i.kind]}`;
   const line = describeNotification(i.kind, i.actorName ? oneLine(i.actorName, 80) : null, i.detail);
-  const replyText = i.replyEnabled ? "You can reply to this email to add a message to your request." : "Open the request to respond.";
+  const replyText = i.approvalReply
+    ? 'Reply "approve" to approve, or "reject" followed by your reason. Or open the request to decide.'
+    : i.replyEnabled
+      ? "You can reply to this email to add a message to your request."
+      : "Open the request to respond.";
   const text = [
     ...(i.replyEnabled ? [REPLY_MARKER, ""] : []),
     `${ref}: ${title}`,

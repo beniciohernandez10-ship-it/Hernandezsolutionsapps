@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requirePrincipal } from "@/lib/auth/current";
 import { listCustomersForOperator } from "@/lib/admin/service";
 import { listCatalogForOperator } from "@/lib/catalog/service";
+import { approverCandidates } from "@/lib/catalog/workflow";
 import { PageTransition } from "@/components/page-transition";
 import { IconBack } from "@/components/icons";
 import { CatalogConsole } from "./console";
@@ -18,7 +19,7 @@ export default async function CatalogAdminPage() {
       </PageTransition>
     );
   }
-  const [items, customers] = await Promise.all([listCatalogForOperator(principal), listCustomersForOperator(principal)]);
+  const [items, customers, candidates] = await Promise.all([listCatalogForOperator(principal), listCustomersForOperator(principal), approverCandidates(principal)]);
   return (
     <PageTransition>
       <p>
@@ -34,9 +35,9 @@ export default async function CatalogAdminPage() {
       </div>
       <p className="subtle">
         Request types clients can choose from New request. Each has its own questions and a checklist for technicians. Items that need approval
-        wait for the client&apos;s administrator. The starter items are templates; edit them to match how you work.
+        wait for the client&apos;s approvers, in as many steps as you set up. The starter items are templates; edit them to match how you work.
       </p>
-      <CatalogConsole items={items} customers={(customers as { id: string; name: string }[]).map((c) => ({ id: c.id, name: c.name }))} />
+      <CatalogConsole items={items} customers={(customers as { id: string; name: string }[]).map((c) => ({ id: c.id, name: c.name }))} candidates={candidates} />
     </PageTransition>
   );
 }

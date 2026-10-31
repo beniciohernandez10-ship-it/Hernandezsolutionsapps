@@ -206,7 +206,7 @@ export async function sendNotificationEmail(payload: unknown) {
   const { notificationId, category } = z.object({ notificationId: z.uuid(), category: z.enum(EMAIL_CATEGORIES).optional() }).parse(payload);
   const ctx = await asSystem(async (tx) => {
     const r = await tx.query<Record<string, unknown>>(
-      `select n.id, n.kind, n.detail, n.user_id, n.emailed_at, n.ticket_id, n.change_id, n.incident_id, n.customer_id,
+      `select n.id, n.kind, n.detail, n.user_id, n.emailed_at, n.ticket_id, n.change_id, n.incident_id, n.customer_id, n.approval_id,
               coalesce(t.number, ch.number, si.number) as number, coalesce(t.title, ch.title, si.title) as title, c.name as customer_name,
               u.email, u.status as user_status, a.display_name as actor_name,
               coalesce(p.email_enabled, true) as email_enabled,
@@ -222,23 +222,25 @@ export async function sendNotificationEmail(payload: unknown) {
     if (!row || row.emailed_at || row.user_status !== "active" || !row.still_member || !row.email_enabled) return null;
     const kind = row.kind as NotificationKind;
     // Requesters may only reply to their own tickets (enforced again on intake); internal and SLA mail never accepts replies.
-    const replyEnabled = emailIntakeEnabled() && REPLY_KINDS.includes(kind) && Boolean(row.ticket_id);
+    // Approval requests can be answered by email too ("approve" / "reject <reason>"), tied to that one approval.
+    const approvalReply = kind === "approval_requested" && Boolean(row.approval_id);
+    const replyEnabled = emailIntakeEnabled() && (REPLY_KINDS.includes(kind) || approvalReply) && Boolean(row.ticket_id);
     let replyTo: string | undefined;
     if (replyEnabled) {
       const token = replyToken(notificationId);
       await tx.query(
-        `insert into email_reply_tokens (token_hash, ticket_id, customer_id, user_id, expires_at)
-         values ($1, $2, $3, $4, now() + interval '120 days') on conflict (token_hash) do nothing`,
-        [hashReplyToken(token), row.ticket_id, row.customer_id, row.user_id],
+        `insert into email_reply_tokens (token_hash, ticket_id, customer_id, user_id, expires_at, approval_id)
+         values ($1, $2, $3, $4, now() + interval '120 days', $5) on conflict (token_hash) do nothing`,
+        [hashReplyToken(token), row.ticket_id, row.customer_id, row.user_id, approvalReply ? row.approval_id : null],
       );
       replyTo = `t-${token}@${config().email.inboundDomain}`;
     }
     const unsubscribeCategory = category ?? categoryForKind(kind);
     const unsubscribeToken = await issueUnsubscribeToken(tx, row.user_id as string, unsubscribeCategory);
-    return { row, kind, replyEnabled, replyTo, unsubscribeCategory, unsubscribeToken };
+    return { row, kind, replyEnabled, replyTo, unsubscribeCategory, unsubscribeToken, approvalReply };
   });
   if (!ctx) return { skipped: true };
-  const { row, kind, replyEnabled, replyTo, unsubscribeCategory, unsubscribeToken } = ctx;
+  const { row, kind, replyEnabled, replyTo, unsubscribeCategory, unsubscribeToken, approvalReply } = ctx;
   const origin = config().appOrigin;
   // The page asks first (for people); the header URL acts on POST (for mail apps).
   const unsubscribeUrl = `${origin}/unsubscribe/${unsubscribeToken}`;
@@ -260,6 +262,7 @@ export async function sendNotificationEmail(payload: unknown) {
     unsubscribeUrl,
     unsubscribeLabel: CATEGORY_LABEL[unsubscribeCategory],
     replyEnabled,
+    approvalReply: replyEnabled && approvalReply,
   });
   await sendEmail({
     to: row.email as string,
