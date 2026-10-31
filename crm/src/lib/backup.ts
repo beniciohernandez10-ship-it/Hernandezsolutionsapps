@@ -11,7 +11,7 @@ export const BACKUP_VERSION = 1;
 // Order matters for restore (parents first).
 const TABLES = [
   "setting", "template", "sequence", "sequenceStep", "company", "contact", "activity", "task", "callQueueItem",
-  "enrollment", "emailMessage", "researchFinding", "client", "savedView",
+  "enrollment", "emailMessage", "researchFinding", "client", "savedView", "emailSuppression",
 ] as const;
 type Table = (typeof TABLES)[number];
 
@@ -32,6 +32,8 @@ export async function createBackup() {
     db.researchFinding.findMany(),
     db.client.findMany(),
     db.savedView.findMany(),
+    // Opt-outs must survive a restore, or people who left would get email again.
+    db.emailSuppression.findMany(),
   ]);
   const data = Object.fromEntries(TABLES.map((t, i) => [t, rows[i]]));
   const attachments = await db.attachment.findMany({ select: { id: true, companyId: true, fileName: true, mimeType: true, size: true, uploadedBy: true, createdAt: true, data: true } });

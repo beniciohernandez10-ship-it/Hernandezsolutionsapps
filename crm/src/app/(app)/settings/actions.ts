@@ -9,6 +9,7 @@ import { hashPassword, passwordProblem } from "@/lib/auth/password";
 import { ActionError, requireActionUser } from "@/lib/auth/session";
 import { restoreBackup } from "@/lib/backup";
 import { db } from "@/lib/db";
+import { syncInbox } from "@/lib/inbox/sync";
 import { recomputeScore } from "@/lib/leads/service";
 import { SCORING_FACTORS } from "@/lib/scoring";
 import { getSetting, setSetting } from "@/lib/settings";
@@ -160,6 +161,35 @@ export async function restoreBackupAction(fd: FormData): Promise<ActionState> {
     revalidatePath("/", "layout");
     const added = Object.entries(result.added).filter(([, n]) => n).map(([t, n]) => `${n} ${t}`).join(", ");
     return { ok: true, message: added ? `Restored: ${added}. Existing records were left as they are.` : "Nothing to restore; every record in the backup already exists." };
+  } catch (err) {
+    return handleActionError(err);
+  }
+}
+
+export async function checkInboxAction(): Promise<ActionState> {
+  try {
+    await requireActionUser("SALES");
+    const r = await syncInbox({ force: true });
+    revalidatePath("/settings");
+    if (r.error) throw new ActionError(r.error);
+    if (r.skipped === "no_mailbox") throw new ActionError("No mailbox is connected.");
+    const h = r.handled ?? {};
+    const found = (h.reply ?? 0) + (h.opt_out ?? 0) + (h.bounce_hard ?? 0) + (h.bounce_soft ?? 0) + (h.auto_reply ?? 0);
+    return { ok: true, message: found ? `Found ${found} new from prospects.` : "Nothing new from prospects." };
+  } catch (err) {
+    return handleActionError(err);
+  }
+}
+
+/** Takes an address off the opt-out list. It doesn't turn "Do not contact" off on the contact: a person does that deliberately too. */
+export async function removeSuppressionAction(email: string): Promise<ActionState> {
+  try {
+    const user = await requireActionUser("ADMIN");
+    const address = z.string().email().parse(email).toLowerCase();
+    await db.emailSuppression.deleteMany({ where: { email: address } });
+    await audit(user.id, "email.suppression_removed", undefined, { email: address });
+    revalidatePath("/settings");
+    return { ok: true, message: "Removed." };
   } catch (err) {
     return handleActionError(err);
   }

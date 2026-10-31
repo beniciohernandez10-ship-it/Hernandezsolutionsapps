@@ -1,3 +1,5 @@
+import { ensureRenewalTasks, sendDigests } from "./digest";
+import { syncInbox } from "./inbox/sync";
 import { dayKey, weekday } from "./dates";
 import { db } from "./db";
 import { advanceEnrollments } from "./outreach";
@@ -5,10 +7,13 @@ import { buildQueue } from "./queue";
 
 /**
  * Daily housekeeping, run by Vercel Cron (once a day on the Hobby plan) or `npm run jobs:run`.
- * It only drafts and organizes; it never sends email.
+ * It drafts and organizes; it never emails a prospect. The only email it sends is the team's morning digest.
  */
 export async function runDailyJobs() {
   const now = new Date();
+  // First, so a reply or opt-out that came in overnight stops the next draft.
+  const inbox = await syncInbox({ force: true, now });
+  const renewalTasks = await ensureRenewalTasks(now);
   const sequences = await advanceEnrollments(now);
   const today = dayKey(now);
   const queues: Record<string, number> = {};
@@ -23,5 +28,6 @@ export async function runDailyJobs() {
     db.session.deleteMany({ where: { expiresAt: { lt: now } } }),
     db.rateLimit.deleteMany({ where: { resetAt: { lt: now } } }),
   ]);
-  return { sequences, queues, expiredSessions: sessions.count, rateLimitsCleared: limits.count };
+  const digests = await sendDigests(now);
+  return { inbox, renewalTasks, sequences, queues, digests, expiredSessions: sessions.count, rateLimitsCleared: limits.count };
 }

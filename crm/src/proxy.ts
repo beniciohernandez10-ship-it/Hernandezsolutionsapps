@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PREFIXES = ["/login", "/setup", "/api/cron/", "/api/calendar/", "/api/health", "/_next/", "/favicon", "/icon", "/apple-icon", "/brand/", "/manifest"];
+const PUBLIC_PREFIXES = ["/login", "/setup", "/api/cron/", "/api/calendar/", "/api/health", "/api/inbound/", "/api/unsubscribe/", "/unsubscribe/", "/_next/", "/favicon", "/icon", "/apple-icon", "/brand/", "/manifest"];
 const COOKIE = process.env.NODE_ENV === "production" ? "__Host-hs_crm" : "hs_crm";
 
 /**

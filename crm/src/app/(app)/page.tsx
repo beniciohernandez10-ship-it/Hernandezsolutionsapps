@@ -1,3 +1,6 @@
+import { after } from "next/server";
+import { hasRole } from "@/lib/auth/roles";
+import { syncInbox } from "@/lib/inbox/sync";
 import { AlarmClock, ArrowRight, MailCheck, Phone } from "lucide-react";
 import Link from "next/link";
 import { BarChartView } from "@/components/charts";
@@ -47,6 +50,8 @@ function Tile({ title, href, children, description }: { title: string; href?: st
 
 export default async function DashboardPage() {
   const user = await requireUser();
+  // The mailbox is also checked here, at most every 15 minutes: the daily job alone would leave replies waiting.
+  if (hasRole(user.role, "SALES")) after(() => syncInbox().then(() => undefined));
   const sales = await getSetting("sales");
   const today = dayKey();
   const [leads, revenue, todayStats, weekStats, fu, myCallsToday, approvals, failed, dueTasks, recent, layoutRow] = await Promise.all([

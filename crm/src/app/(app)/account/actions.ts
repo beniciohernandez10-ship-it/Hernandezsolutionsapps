@@ -134,4 +134,15 @@ export async function signOutOtherSessionsAction(): Promise<ActionState> {
   } catch (err) {
     return handleActionError(err);
   }
+}
+
+export async function setDailyDigestAction(on: boolean): Promise<ActionState> {
+  try {
+    const user = await accountUser();
+    await db.user.update({ where: { id: user.id }, data: { dailyDigest: on } });
+    revalidatePath("/account");
+    return { ok: true, message: on ? "You'll get the morning email." : "Morning email turned off." };
+  } catch (err) {
+    return handleActionError(err);
+  }
 }

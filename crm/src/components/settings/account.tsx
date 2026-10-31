@@ -4,7 +4,7 @@ import { Copy, KeyRound, LogOut, RefreshCw, ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import {
-  changePasswordAction, confirmMfaAction, disableMfaAction, revokeCalendarTokenAction, rotateCalendarTokenAction, signOutOtherSessionsAction, startMfaSetupAction, updateProfileAction,
+  changePasswordAction, confirmMfaAction, disableMfaAction, revokeCalendarTokenAction, rotateCalendarTokenAction, setDailyDigestAction, signOutOtherSessionsAction, startMfaSetupAction, updateProfileAction,
 } from "@/app/(app)/account/actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -68,6 +68,16 @@ export function MfaSection({ enabled, required }: { enabled: boolean; required: 
         </form>
       </div>
     </div>
+  );
+}
+
+export function DigestToggle({ on }: { on: boolean }) {
+  const { run, pending } = useServerAction(setDailyDigestAction);
+  return (
+    <label className="flex items-center gap-2 text-sm">
+      <input type="checkbox" className="size-4" defaultChecked={on} disabled={pending} onChange={(e) => run(e.target.checked)} />
+      Send me the weekday morning email
+    </label>
   );
 }
 

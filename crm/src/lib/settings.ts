@@ -34,8 +34,21 @@ export const securitySettingsSchema = z.object({
 });
 export type SecuritySettings = z.infer<typeof securitySettingsSchema>;
 
+// State of background work, not user settings. Separate keys, so the two can't overwrite each other.
+export const inboxSyncSchema = z.object({
+  lastRunAt: z.string().nullable().default(null),
+  lastSuccessAt: z.string().nullable().default(null),
+  lastError: z.string().nullable().default(null),
+});
+export const digestStateSchema = z.object({
+  lastDay: z.string().nullable().default(null),
+  lastAt: z.string().nullable().default(null),
+});
+
 const SCHEMAS = {
   outreach: outreachSettingsSchema,
+  inboxSync: inboxSyncSchema,
+  digest: digestStateSchema,
   sales: salesSettingsSchema,
   security: securitySettingsSchema,
   scoring: scoringConfigSchema,

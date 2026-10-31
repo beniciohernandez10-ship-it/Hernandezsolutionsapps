@@ -33,6 +33,8 @@ model User {
   mfaSecretEnc    String?
   mfaEnabled      Boolean   @default(false)
   dailyCallGoal   Int       @default(10)
+  // Weekday morning email with what needs attention (src/lib/digest.ts).
+  dailyDigest     Boolean   @default(true)
   dashboardLayout Json?
   // Random token for the private calendar (.ics) feed; rotating it revokes old subscriptions.
   calendarToken   String?   @unique
@@ -296,6 +298,9 @@ enum ActivityType {
   RESEARCH
   REPLY_RECEIVED
   ATTACHMENT
+  WEBSITE_INQUIRY
+  UNSUBSCRIBED
+  BOUNCED
 }
 
 enum CallOutcome {
@@ -622,6 +627,49 @@ model Client {
   // [{ label, done, doneAt }]
   onboarding        Json
   active            Boolean   @default(true)
+  // The renewal date a reminder task was already created for.
+  renewalTaskFor    DateTime?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Inbound: website inquiries, opt-outs, replies and bounces
+// ---------------------------------------------------------------------------
+
+// Each website lead once, so a redelivered webhook never creates a second record.
+model InboundLead {
+  leadId     String   @id
+  type       String
+  // "created", "merged" or "ignored_newsletter".
+  outcome    String
+  companyId  String?
+  receivedAt DateTime @default(now())
+
+  @@index([receivedAt])
+}
+
+// Addresses that must never get sales email again. Outlives the contact, so
+// deleting or re-importing a prospect can't undo an opt-out.
+model EmailSuppression {
+  email     String   @id
+  // "unsubscribe", "reply" or "bounce".
+  reason    String
+  companyId String?
+  createdAt DateTime @default(now())
+}
+
+// Each inbox message once. Only messages tied to a known prospect are kept,
+// and never their text (that goes on the prospect's history).
+model InboxMessage {
+  messageId  String   @id
+  // "reply", "auto_reply", "opt_out", "bounce_hard" or "bounce_soft".
+  kind       String
+  companyId  String?
+  emailId    String?
+  fromEmail  String
+  receivedAt DateTime
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
 }

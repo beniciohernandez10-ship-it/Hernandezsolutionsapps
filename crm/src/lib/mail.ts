@@ -1,6 +1,7 @@
 import nodemailer, { type Transporter } from "nodemailer";
 import { dayKey, startOfDay } from "./dates";
 import { db } from "./db";
+import { isSuppressed, oneClickUrl, unsubscribeUrl } from "./optout";
 import { getSetting, type OutreachSettings } from "./settings";
 import { emailFooter, unresolvedPlaceholders } from "./templates";
 
@@ -47,6 +48,7 @@ export async function sendBlockers(
   const problems: string[] = [];
   if (!o.mailingAddress.trim()) problems.push("Add your business mailing address in Settings → Outreach. US law (CAN-SPAM) requires it in sales email.");
   if (!EMAIL_RE.test(email.toEmail)) problems.push("The recipient address isn't a valid email.");
+  else if (await isSuppressed(email.toEmail)) problems.push("This address opted out or bounced, so it can't get sales email.");
   if (!email.subject.trim()) problems.push("The subject is empty.");
   const ph = unresolvedPlaceholders(`${email.subject}\n${email.body}`);
   if (ph.length) problems.push(`Fill in or remove: ${ph.join(", ")}`);
@@ -65,9 +67,17 @@ export async function sentToday(): Promise<number> {
   return db.emailMessage.count({ where: { status: "SENT", sentVia: { not: "manual" }, sentAt: { gte: startOfDay(dayKey()) } } });
 }
 
-export function fullBody(body: string, o: OutreachSettings): string {
-  return `${body.trim()}\n${emailFooter(o)}\n`;
+/** The email as sent. With an email id, the footer has that email's unsubscribe link. */
+export function fullBody(body: string, o: OutreachSettings, emailId?: string): string {
+  const link = emailId && process.env.APP_ENCRYPTION_KEY ? `\nUnsubscribe: ${unsubscribeUrl(emailId)}` : "";
+  return `${body.trim()}\n${emailFooter(o)}${link}\n`;
 }
+
+/** RFC 8058: mail apps show their own Unsubscribe button and POST to this address. */
+export const unsubscribeHeaders = (emailId: string): Record<string, string> => ({
+  "List-Unsubscribe": `<${oneClickUrl(emailId)}>`,
+  "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+});
 
 interface Outgoing {
   to: string;
@@ -75,6 +85,8 @@ interface Outgoing {
   text: string;
   inReplyTo?: string | null;
   fromName: string;
+  /** Gmail only: Microsoft Graph refuses headers that don't start with x-, so its emails rely on the link in the body. */
+  headers?: Record<string, string>;
 }
 
 let transport: Transporter | null = null;
@@ -88,7 +100,7 @@ function gmail() {
   return transport;
 }
 
-async function graphToken(): Promise<string> {
+export async function graphToken(): Promise<string> {
   const res = await fetch(`https://login.microsoftonline.com/${encodeURIComponent(process.env.MS_TENANT_ID!)}/oauth2/v2.0/token`, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
@@ -113,6 +125,7 @@ export async function deliver(msg: Outgoing): Promise<{ via: MailProvider; messa
       subject: msg.subject,
       text: msg.text,
       ...(msg.inReplyTo ? { inReplyTo: msg.inReplyTo, references: msg.inReplyTo } : {}),
+      ...(msg.headers ? { headers: msg.headers } : {}),
     });
     return { via: "gmail", messageId: info.messageId ?? null };
   }

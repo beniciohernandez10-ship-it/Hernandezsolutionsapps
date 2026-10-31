@@ -219,6 +219,9 @@ export const ACTIVITY_LABEL: Record<string, string> = {
   RESEARCH: "Research",
   REPLY_RECEIVED: "Reply received",
   ATTACHMENT: "File",
+  WEBSITE_INQUIRY: "Website inquiry",
+  UNSUBSCRIBED: "Opted out",
+  BOUNCED: "Email bounced",
 };
 
 export const DEFAULT_ONBOARDING_CHECKLIST = [

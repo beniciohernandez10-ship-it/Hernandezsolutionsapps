@@ -19,6 +19,10 @@ laptop, never Git-linked).
   queue. **No email is ever sent without a person clicking send.** Sequences only create drafts that
   wait for approval. Every email carries your signature, mailing address and an opt-out line.
 - **Follow-ups**: tasks with a private calendar feed (ICS) you can subscribe to in Outlook or Google.
+- **Website inquiries**: form submissions from the website arrive as prospects with a task to respond today.
+- **Replies, opt-outs and bounces**: the mailbox is checked read-only. Replies stop the sequence and land on
+  the prospect. Unsubscribing, replying "no thanks" or a bad address puts it on a list that survives re-imports.
+- **Morning email**: weekdays, what needs attention. Renewals within 60 days get a task automatically.
 - **Import**: CSV or Excel, column mapping, a dry-run preview, duplicate review and an import report.
   Missing values stay blank; nothing is invented.
 - **Scoring**: each point shows its evidence and whether it is data, your judgment, or an estimate.
@@ -49,7 +53,8 @@ Useful commands:
 
 | Command | What it does |
 | --- | --- |
-| `npm test` | Unit tests |
+| `npm run dev:local` | Run on this machine with a throwaway database, no accounts connected (`/setup` code: `local-setup-token`) |
+| `npm test` | Unit and database tests, against a throwaway Postgres |
 | `npm run typecheck` | TypeScript check |
 | `npm run import:file -- leads.csv --dry-run` | Preview an import from the command line |
 | `npm run import:file -- leads.csv --tag "October list"` | Import and tag every row |
@@ -86,6 +91,40 @@ Until a domain mailbox exists, email goes out from `thehernandezsolutionsllc@gma
 
 Keep the daily sending limit low (20–40) for a new sender. When you move to a domain mailbox on
 Microsoft 365, set the four `MS_*` variables and the app switches over.
+
+## Connecting the website
+
+Website forms already post to a CRM webhook when it's configured. To point them here:
+
+1. Create a long random value, for example with
+   `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. Don't paste it into chat.
+2. In the **CRM's** Vercel project, set `WEBSITE_LEAD_SECRET` to that value and redeploy.
+3. In the **website's** Vercel project, set `CRM_WEBHOOK_SECRET` to the same value and `CRM_WEBHOOK_URL` to
+   `https://crm.thehernandezsolutions.com/api/inbound/website-lead`, then redeploy the website.
+4. Send a test through a website form. **Settings → Connections** shows whether it's ready.
+
+Newsletter signups are ignored on purpose: they asked for the newsletter, not a sales call. If the CRM is
+ever down, the website still has the lead in its own database and the notification email.
+
+## Replies, opt-outs and bounces
+
+With Gmail connected there's nothing else to set up: the same app password reads the inbox over IMAP. The
+mailbox is opened read-only, so nothing is marked read, moved or deleted, and mail unrelated to a known
+prospect is ignored and not stored. It's checked by the daily job, and at most every 15 minutes when someone
+opens the dashboard; **Settings → Connections → Check now** runs it on demand.
+
+On Microsoft 365, also grant the app the **Mail.Read** application permission, and scope it to the sending
+mailbox with an application access policy. Microsoft doesn't allow the one-click unsubscribe header there, so
+those emails rely on the link in the footer.
+
+- **Reply:** logged on the prospect, sequence stopped, drafts cancelled, a task to respond today.
+- **Automatic reply (out of office):** noted; the sequence continues.
+- **"No thanks", "unsubscribe", "remove me", "stop":** treated as an opt-out.
+- **Bad address (5.1.x):** marked invalid and blocked, with a task to find a working one. A spam block or
+  full mailbox is only noted, because the address may be fine.
+
+The opt-out list is under **Settings → Outreach**. It's in backups and survives deleting or re-importing a
+prospect. Only remove an address if the person asked you to.
 
 ## Loading the current lead list
 

@@ -1,4 +1,5 @@
 import { Download } from "lucide-react";
+import { CheckInboxButton, RemoveSuppression } from "@/components/settings/inbound";
 import { OutreachSettingsForm, RestoreForm, SalesSettingsForm, ScoringForm, SecurityForm, UserAdmin } from "@/components/settings/settings-forms";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,7 +32,10 @@ export default async function SettingsPage() {
   const user = await requireUser();
   const admin = canAdmin(user.role);
   const owner = hasRole(user.role, "OWNER");
-  const [sales, outreach, scoring, security, users, logs] = await Promise.all([
+  const [inboxSync, suppressions, suppressionCount, sales, outreach, scoring, security, users, logs] = await Promise.all([
+    getSetting("inboxSync"),
+    db.emailSuppression.findMany({ orderBy: { createdAt: "desc" }, take: 100 }),
+    db.emailSuppression.count(),
     getSetting("sales"),
     getSetting("outreach"),
     getSetting("scoring"),
@@ -42,6 +46,18 @@ export default async function SettingsPage() {
   const provider = mailProvider();
   const integrations = [
     { name: "Email sending", status: provider === "manual" ? "Not connected" : `${PROVIDER_LABEL[provider]} · ${senderAddress()}`, ok: provider !== "manual", how: "GMAIL_USER and GMAIL_APP_PASSWORD (or the MS_* values for Microsoft 365) in Vercel environment variables." },
+    {
+      name: "Reply and bounce detection",
+      status: provider === "manual" ? "Needs a connected mailbox" : inboxSync.lastError ? "Can't read the mailbox" : inboxSync.lastSuccessAt ? `Last checked ${formatDateTime(inboxSync.lastSuccessAt)}` : "Not checked yet",
+      ok: provider !== "manual" && !inboxSync.lastError,
+      how: inboxSync.lastError ?? "GMAIL_USER and GMAIL_APP_PASSWORD. Microsoft 365 also needs the Mail.Read application permission.",
+    },
+    {
+      name: "Website inquiries",
+      status: process.env.WEBSITE_LEAD_SECRET ? "Ready to receive" : "Not connected",
+      ok: !!process.env.WEBSITE_LEAD_SECRET,
+      how: "WEBSITE_LEAD_SECRET here, and the same value as CRM_WEBHOOK_SECRET on the website, with CRM_WEBHOOK_URL pointing at /api/inbound/website-lead.",
+    },
     { name: "Research assistant", status: researchConfigured() ? "Connected" : "Not connected", ok: researchConfigured(), how: "ANTHROPIC_API_KEY in Vercel environment variables." },
     { name: "Daily jobs", status: process.env.CRON_SECRET ? "Scheduled daily" : "CRON_SECRET missing", ok: !!process.env.CRON_SECRET, how: "CRON_SECRET in Vercel; the schedule is in vercel.json." },
     { name: "Encryption key", status: process.env.APP_ENCRYPTION_KEY ? "Set" : "Missing", ok: !!process.env.APP_ENCRYPTION_KEY, how: "APP_ENCRYPTION_KEY (32 random bytes, base64)." },
@@ -66,6 +82,28 @@ export default async function SettingsPage() {
           <Card>
             <CardHeader title="Outreach" description="Added to every email. The mailing address is required by CAN-SPAM; sending is blocked until it's set." />
             <CardBody><OutreachSettingsForm values={outreach} disabled={!admin} /></CardBody>
+          </Card>
+          <Card className="mt-4">
+            <CardHeader
+              title={`Opted out or bounced (${suppressionCount})`}
+              description="These addresses can't get sales email, even if they're imported again. Only remove one if the person asked you to."
+            />
+            <CardBody>
+              {suppressions.length === 0 ? (
+                <p className="text-sm text-muted">None yet.</p>
+              ) : (
+                <ul className="flex flex-col gap-1 text-sm">
+                  {suppressions.map((s) => (
+                    <li key={s.email} className="flex items-center justify-between gap-2">
+                      <span className="min-w-0 truncate">
+                        {s.email} <span className="text-xs text-muted">· {s.reason === "bounce" ? "bounced" : s.reason === "reply" ? "replied to opt out" : "unsubscribe link"} · {formatDateTime(s.createdAt)}</span>
+                      </span>
+                      {admin ? <RemoveSuppression email={s.email} /> : null}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardBody>
           </Card>
         </section>
         {admin ? (
@@ -114,7 +152,11 @@ export default async function SettingsPage() {
         ) : null}
         <section id="integrations" className="scroll-mt-20">
           <Card>
-            <CardHeader title="Connections" description="Values live in Vercel environment variables, never in the app. Only their status is shown here." />
+            <CardHeader
+              title="Connections"
+              description="Values live in Vercel environment variables, never in the app. Only their status is shown here."
+              action={provider !== "manual" ? <CheckInboxButton /> : null}
+            />
             <CardBody>
               <dl>
                 {integrations.map((i) => (

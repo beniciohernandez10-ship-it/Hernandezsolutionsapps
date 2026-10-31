@@ -6,8 +6,9 @@ export default defineConfig({
   test: {
     include: ["tests/unit/**/*.test.{ts,tsx}", "tests/integration/**/*.test.ts"],
     environment: "node",
-    // Unit tests never query the database; modules that import the client only need a URL to load.
-    env: { DATABASE_URL: process.env.DATABASE_URL ?? "postgresql://unused:unused@localhost:5432/unused" },
+    // Always the in-memory database from global-setup, never whatever DATABASE_URL happens to be set.
+    env: { DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:54329/postgres?sslmode=disable", APP_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64"), APP_ORIGIN: "https://crm.example.test" },
+    globalSetup: ["tests/integration/global-setup.ts"],
     testTimeout: 30_000,
     hookTimeout: 60_000,
     fileParallelism: false,

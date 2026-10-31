@@ -6,6 +6,7 @@ import { handleActionError, type ActionState } from "@/lib/actions";
 import { audit } from "@/lib/audit";
 import { ActionError, requireActionUser } from "@/lib/auth/session";
 import { INDUSTRIES } from "@/lib/constants";
+import { isSuppressed } from "@/lib/optout";
 import { db } from "@/lib/db";
 import { advanceEnrollments, approveAndSend, markSentManually, recipientFor } from "@/lib/outreach";
 
@@ -279,6 +280,7 @@ export async function enrollAction(input: { companyIds: string[]; sequenceId: st
       if (busy) { skip("already in a sequence"); continue; }
       const to = await recipientFor(companyId, ids.length === 1 ? input.contactId : null);
       if (!to.email) { skip("no email on file"); continue; }
+      if (await isSuppressed(to.email)) { skip("opted out or bounced"); continue; }
       await db.enrollment.create({
         data: { companyId, contactId: to.contactId, sequenceId: sequence.id, toEmail: to.email, createdById: user.id, nextStepDueAt: new Date(Date.now() + first.delayDays * 86400_000) },
       });

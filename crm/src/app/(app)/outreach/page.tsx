@@ -52,7 +52,7 @@ export default async function OutreachPage({ searchParams }: { searchParams: Pro
     sentVia: e.sentVia,
     error: e.error,
     placeholders: unresolvedPlaceholders(`${e.subject}\n${e.body}`),
-    mailto: mailtoHref(e.toEmail, e.subject, fullBody(e.body, outreach)),
+    mailto: mailtoHref(e.toEmail, e.subject, fullBody(e.body, outreach, e.id)),
   }));
 
   return (

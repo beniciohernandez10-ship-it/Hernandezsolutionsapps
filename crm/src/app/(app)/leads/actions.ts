@@ -8,6 +8,7 @@ import { audit } from "@/lib/audit";
 import { ActionError, requireActionUser } from "@/lib/auth/session";
 import { INDUSTRIES, STAGE_KEYS, STAGE_LABEL, TASK_TYPE_LABEL } from "@/lib/constants";
 import { dayKey, parseLocalDateTime } from "@/lib/dates";
+import { moveToContacted, stopSequencesForReply } from "@/lib/inbox/sync";
 import { db } from "@/lib/db";
 import { findMatch } from "@/lib/leads/dedupe";
 import { companySchema, contactSchema } from "@/lib/leads/schema";
@@ -438,12 +439,9 @@ export async function markReplyAction(companyId: string, note: string): Promise<
     const user = await requireActionUser("SALES");
     await db.$transaction(async (tx) => {
       await tx.activity.create({ data: { companyId, userId: user.id, type: "REPLY_RECEIVED", summary: "Reply received", body: note || null } });
-      await tx.enrollment.updateMany({ where: { companyId, status: { in: ["ACTIVE", "PAUSED"] } }, data: { status: "REPLIED", stopReason: "Prospect replied", nextStepDueAt: null } });
-      await tx.emailMessage.updateMany({ where: { companyId, status: { in: ["PENDING_APPROVAL", "DRAFT"] }, enrollmentId: { not: null } }, data: { status: "CANCELLED", error: "Sequence stopped: prospect replied" } });
-      await tx.company.update({ where: { id: companyId }, data: { lastContactedAt: new Date() } });
+      await stopSequencesForReply(companyId, tx);
+      await moveToContacted(companyId, user.id, tx);
     });
-    const company = await db.company.findUniqueOrThrow({ where: { id: companyId }, select: { stage: true } });
-    if (["NEW_LEAD", "RESEARCHING", "READY_TO_CONTACT", "ATTEMPTED_CONTACT"].includes(company.stage)) await changeStage(companyId, "CONTACTED", user.id, "Prospect replied");
     revalidatePath(`/leads/${companyId}`);
     revalidatePath("/outreach");
     return { ok: true, message: "Reply logged. Automatic follow-ups for this lead are stopped." };

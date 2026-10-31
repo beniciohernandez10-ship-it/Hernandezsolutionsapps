@@ -1,6 +1,6 @@
 import { UNTOUCHED_STAGES, CLOSED_STAGES, type StageKey } from "./constants";
 import { db, type Prisma } from "./db";
-import { deliver, fullBody, sendBlockers, sentToday } from "./mail";
+import { deliver, fullBody, sendBlockers, sentToday, unsubscribeHeaders } from "./mail";
 import { changeStage } from "./leads/service";
 import { getSetting, type OutreachSettings } from "./settings";
 import { BUILT_IN_TEMPLATES, FOLLOW_UP_KEYS, builtInKeyForIndustry, mergeDataFor, renderTemplate } from "./templates";
@@ -208,8 +208,9 @@ export async function approveAndSend(emailId: string, userId: string): Promise<S
     const { via, messageId } = await deliver({
       to: email.toEmail,
       subject: email.subject,
-      text: fullBody(email.body, outreach),
+      text: fullBody(email.body, outreach, email.id),
       inReplyTo: email.inReplyTo,
+      headers: unsubscribeHeaders(email.id),
       fromName: `${outreach.senderName} | ${outreach.companyName}`,
     });
     await recordSent(email, userId, via, messageId);
